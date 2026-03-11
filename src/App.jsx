@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
+// --- SUPABASE INITIALIZATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || '0000'; // Falls back to 0000 only if env is missing
@@ -10,6 +11,7 @@ const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
+// --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
   routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
   routeSub: 'Direct Charter Flight',
@@ -31,6 +33,18 @@ const COUNTRY_CODES = [
   { code: '+33', label: 'FR (+33)' }, { code: '+49', label: 'DE (+49)' }, { code: '+61', label: 'AU (+61)' }, { code: '+00', label: 'Other' }
 ];
 
+// UTILITY: Phone Formatter
+const formatPhoneNumber = (value) => {
+  if (!value) return value;
+  const phoneNumber = value.replace(/[^\d]/g, '');
+  const phoneNumberLength = phoneNumber.length;
+  if (phoneNumberLength < 4) return phoneNumber;
+  if (phoneNumberLength < 7) {
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+  }
+  return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
@@ -40,7 +54,7 @@ export default function App() {
   const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
-  // Hardened Auth Setup
+  // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
       setAuthInitialized(true);
@@ -56,12 +70,11 @@ export default function App() {
     initAuth();
   }, []);
 
-  // Hardened Channel Subscription
+  // Supabase Data Fetching
   useEffect(() => {
     if (!supabase || !user) return;
     
     let channel;
-    
     const fetchInitialCount = async () => {
       const { data, error } = await supabase.from('flight_status').select('*').eq('id', 1).single();
       if (!error && data) setFlightStatus(data);
@@ -75,7 +88,6 @@ export default function App() {
       })
       .subscribe();
 
-    // Clean up channel accurately
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
@@ -145,7 +157,7 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlis
     <div className="animate-in fade-in duration-500 pb-16">
       <div className="relative bg-[#0a192f] text-white py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
+          <img src="[https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop](https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop)" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/80 to-transparent"></div>
         </div>
         
@@ -339,6 +351,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingResponse, setBookingResponse] = useState(null); 
   const [formErrors, setFormErrors] = useState([]);
+  const [checkoutError, setCheckoutError] = useState(''); // NEW: Replaces standard alerts
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   const subtotal = cabinDetails.price * passengers.length;
@@ -348,10 +361,16 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
-    if (field === 'phone' || field === 'emergencyPhone') value = value.replace(/[^\d\-\s()]/g, '');
+    
+    // Auto-format phones
+    if (field === 'phone' || field === 'emergencyPhone') {
+      value = formatPhoneNumber(value);
+    }
+    
     newPass[index][field] = value;
     setPassengers(newPass);
     setFormErrors(formErrors.filter(e => !(e.index === index && e.field === field)));
+    setCheckoutError('');
   };
 
   const addPassenger = () => setPassengers([...passengers, { firstName: '', middleName: '', lastName: '', email: '', phoneCode: '+1', phone: '', emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' }]);
@@ -368,9 +387,9 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
       if (!p.firstName.trim()) errors.push({ index: i, field: 'firstName', msg: 'Required' });
       if (!p.lastName.trim()) errors.push({ index: i, field: 'lastName', msg: 'Required' });
       if (!p.email.includes('@')) errors.push({ index: i, field: 'email', msg: 'Required' });
-      if (p.phone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'phone', msg: 'Required' });
+      if (p.phone.replace(/\D/g, '').length < 10) errors.push({ index: i, field: 'phone', msg: 'Required' });
       if (!p.emergencyName.trim()) errors.push({ index: i, field: 'emergencyName', msg: 'Required' });
-      if (p.emergencyPhone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'emergencyPhone', msg: 'Required' });
+      if (p.emergencyPhone.replace(/\D/g, '').length < 10) errors.push({ index: i, field: 'emergencyPhone', msg: 'Required' });
       if (!p.passport.trim()) errors.push({ index: i, field: 'passport', msg: 'Required' });
       if (!p.passportExpiry) errors.push({ index: i, field: 'passportExpiry', msg: 'Required' });
       if (!p.dob) errors.push({ index: i, field: 'dob', msg: 'Required' });
@@ -382,17 +401,24 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   };
 
   const handleContinueToPayment = () => {
+    setCheckoutError('');
     if (validateStep1()) {
       setStep(2);
       window.scrollTo(0,0);
     } else {
-      alert("Please complete all required fields highlighted in red.");
+      setCheckoutError("Please complete all required fields highlighted in red before proceeding.");
     }
   };
 
   const handleCheckout = async (e) => {
     e.preventDefault();
-    if (!agreedToTerms) return alert("You must agree to the Terms & Conditions to proceed.");
+    setCheckoutError('');
+
+    if (!agreedToTerms) {
+      setCheckoutError("You must agree to the Terms & Conditions to proceed.");
+      return;
+    }
+    
     setIsProcessing(true);
 
     try {
@@ -415,7 +441,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
       window.scrollTo(0,0);
     } catch (error) {
       console.error("Booking error:", error);
-      alert(`Booking Failed: ${error.message || "An error occurred."}`);
+      setCheckoutError(`Booking Failed: ${error.message || "An unexpected error occurred."}`);
     } finally {
       setIsProcessing(false);
     }
@@ -447,9 +473,9 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
           <div className="p-6 sm:p-8">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Users size={20} className="text-blue-600"/> Passenger Information</h2>
             
-            {formErrors.length > 0 && (
+            {checkoutError && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-2 text-sm font-medium">
-                <AlertCircle size={18} /> Please fill out all required fields marked in red.
+                <AlertCircle size={18} /> {checkoutError}
               </div>
             )}
 
@@ -741,6 +767,9 @@ function AdminView({ setView, flightStatus }) {
       <div className="max-w-sm mx-auto px-4 py-24 text-center">
         <Lock className="mx-auto text-slate-400 mb-4" size={32} />
         <h2 className="text-xl font-bold mb-4">Admin Dashboard</h2>
+        <div className="text-xs text-slate-500 mb-6 px-4">
+          Note: This dashboard only shows public aggregate data. Passenger PII is securely locked in the database.
+        </div>
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Enter PIN" className="w-full border border-slate-300 rounded p-2 text-center tracking-widest mb-4" />
         <button onClick={() => pin === ADMIN_PIN ? setAuth(true) : alert('Invalid')} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Login</button>
       </div>
