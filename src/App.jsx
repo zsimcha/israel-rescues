@@ -6,7 +6,9 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabase = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, supabaseAnonKey) : null;
+const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey) 
+  : null;
 
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
@@ -39,6 +41,7 @@ export default function App() {
   const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
+  // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
       setAuthInitialized(true);
@@ -53,6 +56,7 @@ export default function App() {
     initAuth();
   }, []);
 
+  // Supabase Data Fetching
   useEffect(() => {
     if (!supabase || !user) return;
     const fetchInitialCount = async () => {
@@ -78,6 +82,7 @@ export default function App() {
   };
 
   const showPublicCount = flightStatus.seats_reserved >= 30;
+  const isWaitlistActive = flightStatus.seats_remaining <= 0;
 
   if (!authInitialized || loadingData) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>;
   if (!supabase) return <div className="min-h-screen flex items-center justify-center">Missing Supabase config.</div>;
@@ -86,7 +91,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 flex flex-col">
       <Navbar setView={setView} />
       <main className="flex-grow">
-        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} />}
+        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} isWaitlistActive={isWaitlistActive} />}
         {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} seatsRemaining={flightStatus.seats_remaining} />}
         {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
         {view === 'admin' && <AdminView setView={setView} flightStatus={flightStatus} />}
@@ -119,11 +124,12 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
+function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlistActive }) {
   const [openFaq, setOpenFaq] = useState(null);
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
   const faqs = [
+    { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity (which it likely will), we will charter an additional flight for a departure date on or around March 18. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." },
     { q: "When will the final flight details be confirmed?", a: "Final departure time and operational details will be confirmed once the aircraft positioning and regulatory clearances are finalized. Passengers will receive full flight information prior to departure." },
     { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens." },
     { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
@@ -162,7 +168,7 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
-              {seatsRemaining <= 0 ? (
+              {isWaitlistActive ? (
                 <p className="font-bold text-xl text-amber-400">Waitlist Open</p>
               ) : showPublicCount ? (
                 <p className="font-bold text-xl text-blue-300">{seatsRemaining} Seats Remaining</p>
@@ -174,7 +180,13 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
         </div>
       </div>
 
-      <div className="bg-white py-8 border-b border-slate-200 shadow-sm relative z-20 -mt-4 mx-4 sm:mx-8 lg:mx-auto max-w-7xl rounded-xl px-4 sm:px-8">
+      {isWaitlistActive && (
+        <div className="bg-amber-100 border-b border-amber-200 text-amber-900 py-4 px-4 sm:px-8 text-center text-sm font-medium">
+          The primary flight is currently full. We are accepting priority waitlist reservations. If the waitlist fills, we will charter an additional flight.
+        </div>
+      )}
+
+      <div className="bg-white py-8 border-b border-slate-200 shadow-sm relative z-20 mx-4 sm:mx-8 lg:mx-auto max-w-7xl rounded-b-xl px-4 sm:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
           <div className="flex gap-3 items-start">
             <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0"><ShieldCheck size={20} /></div>
@@ -187,7 +199,7 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
             <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><CheckCircle size={20} /></div>
             <div>
               <h3 className="font-bold text-base mb-1 text-slate-900">Instant Reservation</h3>
-              <p className="text-slate-600">Seats are reserved once payment is received. Exact details confirmed prior to departure.</p>
+              <p className="text-slate-600">Seats (or waitlist spots) are secured once payment is received.</p>
             </div>
           </div>
           <div className="flex gap-3 items-start">
@@ -201,7 +213,7 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold mb-8 text-center">Select Your Class</h2>
+        <h2 className="text-3xl font-bold mb-8 text-center">{isWaitlistActive ? 'Join the Waitlist' : 'Select Your Class'}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           {Object.values(CABIN_CLASSES).map((cabin) => (
             <div key={cabin.id} className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden flex flex-col ${cabin.id === 'business' ? 'border-blue-900 shadow-lg' : 'border-slate-200'}`}>
@@ -227,7 +239,7 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
                   className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
                     ${cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                 >
-                  {seatsRemaining <= 0 ? `Join Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
+                  {isWaitlistActive ? `Join ${cabin.name} Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
                 </button>
               </div>
             </div>
@@ -267,11 +279,11 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
           <div className="bg-amber-50 p-8 rounded-xl border border-amber-200 text-amber-900 shadow-sm">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><AlertCircle size={24} className="text-amber-600"/> Important Info</h2>
             <div className="space-y-4 text-sm">
+              <p><strong>Waitlist Policy:</strong> If the primary flight is full, you are securing a spot on the waitlist. If sufficient waitlist demand is met, a second flight will be chartered. <strong>Wire transfers are required to hold a waitlist spot</strong> and are fully refundable if a second flight is not chartered.</p>
               <p><strong>Check-in & Security:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure for check-in and security procedures.</p>
               <p><strong>Destination:</strong> This flight will land directly at Frankfurt Airport (FRA).</p>
               <p><strong>Onward Travel:</strong> Passengers should <strong>not</strong> book onward travel until the charter flight is fully confirmed.</p>
-              <p><strong>Availability:</strong> Due to high demand, reservations may be limited and availability cannot be guaranteed until payment is completed.</p>
-              <p><strong>Seating Arrangements:</strong> We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate.</p>
+              <p><strong>Seating Arrangements:</strong> We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com.</p>
             </div>
           </div>
           
@@ -319,14 +331,13 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const [paymentMethod, setPaymentMethod] = useState('wire');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [bookingResponse, setBookingResponse] = useState(null); // stores {ref, isWaitlist}
+  const [bookingResponse, setBookingResponse] = useState(null); 
   const [formErrors, setFormErrors] = useState([]);
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   const subtotal = cabinDetails.price * passengers.length;
   const totalAmount = subtotal;
 
-  // Dynamic waitlist check: if the seats they want exceed what's left
   const isWaitlistSpot = seatsRemaining < passengers.length;
 
   const handlePassChange = (index, field, value) => {
@@ -533,7 +544,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
             {isWaitlistSpot && (
               <div className="bg-amber-100 border-l-4 border-amber-500 p-4 mb-8 text-amber-900 rounded-r shadow-sm">
                 <p className="font-bold flex items-center gap-2 mb-1"><AlertCircle size={18}/> Notice: This is a Waitlist Spot</p>
-                <p className="text-sm">The primary flight is currently full. By proceeding, you are joining the priority waitlist. If the waitlist fills (which it likely will), we will charter an additional flight for a departure date on or around March 18.</p>
+                <p className="text-sm">The primary flight is currently full. By proceeding, you are joining the priority waitlist. If the waitlist fills, we will charter an additional flight. You must complete the wire transfer to secure your spot.</p>
               </div>
             )}
 
@@ -548,7 +559,9 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
               <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
-                <p className="text-xs text-slate-500 mt-1">To reserve a seat immediately, payment can currently be made via wire transfer.</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {isWaitlistSpot ? 'Wire transfer required to hold your position on the waitlist.' : 'To reserve a seat immediately, payment can currently be made via wire transfer.'}
+                </p>
               </div>
             </div>
 
@@ -556,7 +569,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
               <h3 className="font-bold text-lg border-b border-slate-200 pb-2 mb-4">Order Summary</h3>
               <div className="space-y-2 text-sm text-slate-700 mb-4">
                 <div className="flex justify-between">
-                  <span>{cabinDetails.name} Seat x {passengers.length}</span>
+                  <span>{cabinDetails.name} {isWaitlistSpot ? 'Waitlist Spot' : 'Seat'} x {passengers.length}</span>
                   <span>${subtotal.toLocaleString()}</span>
                 </div>
               </div>
@@ -569,7 +582,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
                 <div className="mt-6 border-t border-slate-200 pt-6">
                   <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm">
                     <p className="font-bold mb-1">Wire Transfer Selected</p>
-                    <p>Upon clicking "Complete Reservation", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your seats on this flight.</p>
+                    <p>Upon clicking "Complete", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your {isWaitlistSpot ? 'waitlist position' : 'seats'}.</p>
                   </div>
                 </div>
               )}
@@ -621,7 +634,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
               <p className="text-sm text-slate-500 mb-1">Booking Reference</p>
               <p className="text-2xl font-mono font-bold mb-4 tracking-wider text-[#0a192f]">{bookingResponse.ref}</p>
               
-              <p className="text-sm text-slate-500 mb-1">Seats Requested</p>
+              <p className="text-sm text-slate-500 mb-1">{bookingResponse.isWaitlist ? 'Waitlist Spots' : 'Seats Requested'}</p>
               <p className="font-semibold mb-4">{passengers.length} x {cabinDetails.name}</p>
 
               <p className="text-sm text-slate-500 mb-2">Status</p>
@@ -700,7 +713,9 @@ function LookupView({ setView, supabase }) {
               <p className="flex justify-between"><span className="text-slate-500">Passengers:</span> <strong>{result.passenger_count}</strong></p>
               <div className="pt-2 mt-2 border-t border-slate-200">
                 <p className="text-slate-500 mb-1">Status:</p>
-                <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-1 rounded inline-block text-xs uppercase tracking-wider">{result.payment_status.replace('_', ' ')}</p>
+                <p className={`font-semibold px-2 py-1 rounded inline-block text-xs uppercase tracking-wider ${result.payment_status === 'waitlist' ? 'text-amber-700 bg-amber-100 border border-amber-200' : 'text-blue-700 bg-blue-100 border border-blue-200'}`}>
+                  {result.payment_status.replace('_', ' ')}
+                </p>
               </div>
             </div>
             <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">Look up another</button>
@@ -734,12 +749,14 @@ function AdminView({ setView, flightStatus }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Seats Reserved</p>
-          <p className="text-4xl font-extrabold text-[#0a192f]">{flightStatus.seats_reserved}</p>
+          <p className="text-4xl font-extrabold text-[#0a192f]">
+            {flightStatus.seats_reserved > 253 ? 253 : flightStatus.seats_reserved}
+          </p>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Remaining</p>
           <p className={`text-4xl font-extrabold ${flightStatus.seats_remaining <= 0 ? 'text-red-500' : 'text-blue-600'}`}>
-            {flightStatus.seats_remaining}
+            {flightStatus.seats_remaining <= 0 ? 0 : flightStatus.seats_remaining}
           </p>
           {flightStatus.seats_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-1">Waitlist Active: {Math.abs(flightStatus.seats_remaining)} pax</p>}
         </div>
