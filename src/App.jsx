@@ -24,17 +24,12 @@ const FLIGHT_INFO = {
 const CABIN_CLASSES = {
   economy: { id: 'economy', name: 'Economy Class', price: 2150, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
   premium: { id: 'premium', name: 'Economy+', price: 2350, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
-  business: { id: 'business', name: 'Business', price: 3500, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
+  business: { id: 'business', name: 'Business', price: 4000, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
 };
 
 const COUNTRY_CODES = [
-  { code: '+1', label: 'US/CA (+1)' },
-  { code: '+972', label: 'IL (+972)' },
-  { code: '+44', label: 'UK (+44)' },
-  { code: '+33', label: 'FR (+33)' },
-  { code: '+49', label: 'DE (+49)' },
-  { code: '+61', label: 'AU (+61)' },
-  { code: '+00', label: 'Other' }
+  { code: '+1', label: 'US/CA (+1)' }, { code: '+972', label: 'IL (+972)' }, { code: '+44', label: 'UK (+44)' },
+  { code: '+33', label: 'FR (+33)' }, { code: '+49', label: 'DE (+49)' }, { code: '+61', label: 'AU (+61)' }, { code: '+00', label: 'Other' }
 ];
 
 export default function App() {
@@ -43,13 +38,13 @@ export default function App() {
   const [view, setView] = useState('landing');
   const [selectedCabin, setSelectedCabin] = useState('economy');
   
-  const [bookedSeatsCount, setBookedSeatsCount] = useState(0);
+  // Driven by our new flight_status table
+  const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
   // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
-      console.error("Supabase credentials missing!");
       setAuthInitialized(true);
       setLoadingData(false);
       return;
@@ -57,34 +52,27 @@ export default function App() {
 
     const initAuth = async () => {
       const { data, error } = await supabase.auth.signInAnonymously();
-      if (error) {
-        console.error("Auth Error:", error.message);
-      } else {
-        setUser(data.user);
-      }
+      if (!error) setUser(data.user);
       setAuthInitialized(true);
     };
     initAuth();
   }, []);
 
-  // Supabase Data Fetching
+  // Supabase Real-time Seat Fetching
   useEffect(() => {
     if (!supabase || !user) return;
 
     const fetchInitialCount = async () => {
-      const { data, error } = await supabase.from('seat_counts').select('count');
-      if (!error && data) {
-        const total = data.reduce((sum, row) => sum + row.count, 0);
-        setBookedSeatsCount(total);
-      }
+      const { data, error } = await supabase.from('flight_status').select('*').eq('id', 1).single();
+      if (!error && data) setFlightStatus(data);
       setLoadingData(false);
     };
 
     fetchInitialCount();
 
-    const channel = supabase.channel('seat_counts_updates')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'seat_counts' }, payload => {
-        setBookedSeatsCount(current => current + payload.new.count);
+    const channel = supabase.channel('status_updates')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'flight_status' }, payload => {
+        setFlightStatus(payload.new);
       })
       .subscribe();
 
@@ -97,8 +85,7 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const seatsAvailable = Math.max(0, FLIGHT_INFO.totalSeats - bookedSeatsCount);
-  const showPublicCount = bookedSeatsCount >= 30;
+  const showPublicCount = flightStatus.seats_reserved >= 30;
 
   if (!authInitialized || loadingData) {
     return (
@@ -125,13 +112,13 @@ export default function App() {
       <Navbar setView={setView} />
       <main className="flex-grow">
         {view === 'landing' && (
-          <LandingView onSelectCabin={handleSelectCabin} seatsAvailable={seatsAvailable} showPublicCount={showPublicCount} />
+          <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} />
         )}
         {view === 'booking' && (
-          <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} />
+          <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} seatsRemaining={flightStatus.seats_remaining} />
         )}
-        {view === 'lookup' && <LookupView setView={setView} />}
-        {view === 'admin' && <AdminView setView={setView} bookedSeatsCount={bookedSeatsCount} />}
+        {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
+        {view === 'admin' && <AdminView setView={setView} flightStatus={flightStatus} />}
       </main>
       <Footer setView={setView} />
     </div>
@@ -163,15 +150,14 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
+function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
   const [openFaq, setOpenFaq] = useState(null);
 
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
   const faqs = [
-    { q: "When will the flight be confirmed?", a: "The flight will be confirmed once sufficient seats are reserved and the aircraft contract is finalized. We expect this to be a minimum of 2-3 days before departure." },
-    { q: "When will I know the exact departure time?", a: "Passengers will receive a confirmation email with the exact departure time once the aircraft is secured and regulatory approvals are finalized." },
-    { q: "Can I get a refund?", a: "Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled." },
+    { q: "When will the final flight details be confirmed?", a: "Final departure time and operational details will be confirmed once the aircraft positioning and regulatory clearances are finalized. Passengers will receive full flight information prior to departure." },
+    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens." },
     { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
   ];
 
@@ -209,7 +195,7 @@ function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
               <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
               {showPublicCount ? (
-                <p className="font-bold text-xl text-blue-300">{seatsAvailable} Seats Remaining</p>
+                <p className="font-bold text-xl text-blue-300">{seatsRemaining} Seats Remaining</p>
               ) : (
                 <p className="font-bold text-base text-blue-300 mt-1">Limited seats available — reserve now</p>
               )}
@@ -231,7 +217,7 @@ function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
             <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><CheckCircle size={20} /></div>
             <div>
               <h3 className="font-bold text-base mb-1 text-slate-900">Instant Reservation</h3>
-              <p className="text-slate-600">Seats are reserved once payment is received. Exact date and time confirmed 2-3 days before departure.</p>
+              <p className="text-slate-600">Seats are reserved once payment is received. Exact details confirmed prior to departure.</p>
             </div>
           </div>
           <div className="flex gap-3 items-start">
@@ -268,10 +254,12 @@ function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
               <div className="p-6 pt-0 mt-auto">
                 <button 
                   onClick={() => onSelectCabin(cabin.id)}
-                  className={`w-full py-3 rounded-lg font-bold transition-all shadow hover:shadow-md flex items-center justify-center gap-2
-                    ${cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                  disabled={seatsRemaining === 0}
+                  className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
+                    ${seatsRemaining === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 
+                      cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                 >
-                  Select {cabin.name} <ChevronRight size={18} />
+                  {seatsRemaining === 0 ? 'Sold Out' : `Select ${cabin.name}`} {seatsRemaining > 0 && <ChevronRight size={18} />}
                 </button>
               </div>
             </div>
@@ -323,7 +311,7 @@ function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><FileText size={24} className="text-slate-600"/> Legal Notice</h2>
             <div className="text-sm text-slate-600 space-y-4 leading-relaxed">
               <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker.</p>
-              <p>Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled.</p>
+              <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens.</p>
             </div>
           </div>
         </div>
@@ -351,7 +339,7 @@ function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
   );
 }
 
-function BookingFlow({ setView, selectedCabin, user, supabase }) {
+function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining }) {
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState([{ 
     firstName: '', middleName: '', lastName: '', 
@@ -360,7 +348,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
     passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' 
   }]);
   
-  const [paymentMethod, setPaymentMethod] = useState('cc');
+  const [paymentMethod, setPaymentMethod] = useState('wire');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingRef, setBookingRef] = useState('');
@@ -368,8 +356,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   const subtotal = cabinDetails.price * passengers.length;
-  const ccFee = Math.round(subtotal * 0.03);
-  const totalAmount = paymentMethod === 'cc' ? subtotal + ccFee : subtotal;
+  const totalAmount = subtotal;
 
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
@@ -416,6 +403,10 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
   };
 
   const handleContinueToPayment = () => {
+    if (passengers.length > seatsRemaining) {
+      alert(`Sorry, there are only ${seatsRemaining} seats left.`);
+      return;
+    }
     if (validateStep1()) {
       setStep(2);
       window.scrollTo(0,0);
@@ -433,38 +424,28 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
     setIsProcessing(true);
 
     try {
-      const { data: bookingData, error: bookingError } = await supabase
-        .from('bookings')
-        .insert([{
-            user_id: user.id,
-            passengers: passengers,
-            cabin_class: selectedCabin,
-            total_paid: paymentMethod === 'cc' ? totalAmount : 0, 
-            payment_method: paymentMethod,
-            status: 'pending' 
-        }]).select();
+      // Execute Atomic RPC Call
+      const { data: refId, error } = await supabase.rpc('make_reservation', {
+        p_user_id: user.id,
+        p_payment_method: paymentMethod,
+        p_total_amount: totalAmount,
+        p_cabin_class: selectedCabin,
+        p_contact_name: `${passengers[0].firstName} ${passengers[0].lastName}`,
+        p_email: passengers[0].email,
+        p_phone: `${passengers[0].phoneCode} ${passengers[0].phone}`,
+        p_passenger_count: passengers.length,
+        p_passengers: passengers
+      });
 
-      if (bookingError) throw bookingError;
-      const newBookingId = bookingData[0].id;
-      setBookingRef(newBookingId.split('-')[0].toUpperCase());
-
-      // Note: Server-Side API Call Placeholder
-      // await fetch('/api/reserve', { method: 'POST', body: JSON.stringify({ reservationId: newBookingId, seats: passengers.length, cabin: selectedCabin }) });
+      if (error) throw error;
       
-      if (paymentMethod === 'cc') {
-        setTimeout(() => {
-          setStep(3);
-          window.scrollTo(0,0);
-          setIsProcessing(false);
-        }, 1500);
-      } else {
-        setStep(3);
-        window.scrollTo(0,0);
-        setIsProcessing(false);
-      }
+      setBookingRef(refId);
+      setStep(3);
+      window.scrollTo(0,0);
     } catch (error) {
       console.error("Booking error:", error);
-      alert("An error occurred while processing your booking. Please try again.");
+      alert(`Booking Failed: ${error.message || "An error occurred."}`);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -484,7 +465,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <p className="text-slate-600 mt-1">Class: <strong>{cabinDetails.name}</strong> (${cabinDetails.price.toLocaleString()}/seat)</p>
           </div>
           <div className="text-right hidden sm:block">
-            <div className="text-sm text-slate-500">Subtotal</div>
+            <div className="text-sm text-slate-500">Total</div>
             <div className="text-2xl font-extrabold">${subtotal.toLocaleString()}</div>
           </div>
         </div>
@@ -508,15 +489,15 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
                   <h3 className="font-semibold text-lg mb-4 text-slate-800 border-b border-slate-200 pb-2">Passenger {index + 1}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">First Name *</label>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1">First Name (Exactly as on passport) *</label>
                       <input type="text" value={p.firstName} name={`firstName_${index}`} autoComplete="given-name" onChange={(e) => handlePassChange(index, 'firstName', e.target.value)} className={inputClass(index, 'firstName')} required/>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Middle Name</label>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1">Middle Name (Exactly as on passport)</label>
                       <input type="text" value={p.middleName} name={`middleName_${index}`} autoComplete="additional-name" onChange={(e) => handlePassChange(index, 'middleName', e.target.value)} className={inputClass(index, 'middleName')} placeholder="(Optional)" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Last Name *</label>
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1">Last Name (Exactly as on passport) *</label>
                       <input type="text" value={p.lastName} name={`lastName_${index}`} autoComplete="family-name" onChange={(e) => handlePassChange(index, 'lastName', e.target.value)} className={inputClass(index, 'lastName')} required/>
                     </div>
                     
@@ -598,15 +579,15 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div onClick={() => setPaymentMethod('cc')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'cc' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
-                <CreditCard size={32} className={`mb-2 ${paymentMethod === 'cc' ? 'text-blue-600' : 'text-slate-400'}`} />
+              <div className="border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all border-slate-200 opacity-60 bg-slate-50 cursor-not-allowed">
+                <CreditCard size={32} className="mb-2 text-slate-400" />
                 <h3 className="font-bold">Credit Card</h3>
-                <p className="text-xs text-slate-500 mt-1">Instant confirmation. 3% processing fee applies.</p>
+                <p className="text-xs text-slate-500 mt-1">Credit card payments will be available shortly.</p>
               </div>
               <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
-                <p className="text-xs text-slate-500 mt-1">No fees. Must be wired within 6 hours to confirm seat.</p>
+                <p className="text-xs text-slate-500 mt-1">To reserve a seat immediately, payment can currently be made via wire transfer.</p>
               </div>
             </div>
 
@@ -617,31 +598,11 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
                   <span>{cabinDetails.name} Seat x {passengers.length}</span>
                   <span>${subtotal.toLocaleString()}</span>
                 </div>
-                {paymentMethod === 'cc' && (
-                  <div className="flex justify-between text-slate-500">
-                    <span>Credit Card Processing Fee (3%)</span>
-                    <span>${ccFee.toLocaleString()}</span>
-                  </div>
-                )}
               </div>
               <div className="flex justify-between text-xl font-extrabold border-t border-slate-200 pt-4">
                 <span>Total Due</span>
                 <span>${totalAmount.toLocaleString()}</span>
               </div>
-
-              {paymentMethod === 'cc' && (
-                <div className="mt-6 border-t border-slate-200 pt-6">
-                  <div className="bg-white p-4 rounded-lg flex items-start gap-3 border border-slate-200 shadow-sm">
-                    <ShieldCheck className="text-blue-600 shrink-0 mt-0.5" size={20} />
-                    <div>
-                      <p className="font-bold text-sm text-slate-800">Secure Stripe Checkout</p>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                        Upon clicking "Proceed to Secure Checkout", you will be safely redirected to our encrypted Stripe payment portal. We do not store any credit card information on our servers.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {paymentMethod === 'wire' && (
                 <div className="mt-6 border-t border-slate-200 pt-6">
@@ -656,7 +617,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <div className="mb-8">
               <h3 className="font-bold mb-3 flex items-center gap-2"><FileText size={18}/> Terms & Conditions</h3>
               <div className="bg-slate-100 p-4 rounded-lg text-xs text-slate-700 space-y-2 h-32 overflow-y-auto border border-slate-200 mb-4">
-                <p>Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled.</p>
+                <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens.</p>
                 <p className="mt-2">By purchasing a ticket you acknowledge that:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>This is a privately organized charter flight.</li>
@@ -677,7 +638,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
                 {isProcessing ? (
                   <><div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div> Processing...</>
                 ) : (
-                  paymentMethod === 'cc' ? `Proceed to Secure Checkout` : 'Complete Reservation'
+                  'Complete Reservation'
                 )}
               </button>
             </div>
@@ -690,21 +651,10 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
               <CheckCircle size={40} />
             </div>
             
-            {paymentMethod === 'cc' ? (
-              <>
-                <h2 className="text-3xl font-extrabold mb-2">Seat Reserved</h2>
-                <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-                  Your payment has been successfully processed and a receipt has been emailed to {passengers[0].email}.
-                </p>
-              </>
-            ) : (
-              <>
-                <h2 className="text-3xl font-extrabold mb-2">Reservation Held</h2>
-                <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-                  <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
-                </p>
-              </>
-            )}
+            <h2 className="text-3xl font-extrabold mb-2">Reservation Held</h2>
+            <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
+              <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
+            </p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 max-w-sm mx-auto mb-8 text-left">
               <p className="text-sm text-slate-500 mb-1">Booking Reference</p>
@@ -714,25 +664,14 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
               <p className="font-semibold mb-4">{passengers.length} x {cabinDetails.name}</p>
 
               <p className="text-sm text-slate-500 mb-2">Status</p>
-              {paymentMethod === 'cc' ? (
-                <div>
-                  <p className="font-semibold text-[#0a192f] bg-blue-100 border border-blue-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
-                    Seat Reserved — pending final confirmation
-                  </p>
-                  <p className="text-xs text-slate-500 leading-tight">
-                    Seat has been reserved. Final departure time and hub will be emailed once the operator confirms the flight.
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
-                    Reservation Held — awaiting wire transfer
-                  </p>
-                  <p className="text-xs text-slate-500 leading-tight">
-                    Wire must be received within 6 hours to guarantee seats.
-                  </p>
-                </div>
-              )}
+              <div>
+                <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
+                  Reservation Held — awaiting wire transfer
+                </p>
+                <p className="text-xs text-slate-500 leading-tight">
+                  Wire must be received within 6 hours to guarantee seats.
+                </p>
+              </div>
             </div>
 
             <p className="text-sm text-slate-500 mb-8 max-w-md mx-auto">
@@ -749,27 +688,32 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
   );
 }
 
-// --- NEW VIEWS: LOOKUP & ADMIN ---
-
-function LookupView({ setView }) {
+function LookupView({ setView, supabase }) {
   const [email, setEmail] = useState('');
   const [ref, setRef] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLookup = (e) => {
+  const handleLookup = async (e) => {
     e.preventDefault();
     setIsSearching(true);
+    setErrorMsg('');
     
-    // Placeholder for actual lookup fetch
-    setTimeout(() => {
-      setResult({
-        status: 'Pending Final Approval',
-        passengers: 1, 
-        route: 'TLV → FRA'
-      });
+    try {
+      const { data, error } = await supabase.rpc('lookup_reservation', { p_email: email, p_ref: ref });
+      
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        setErrorMsg('No booking found. Please check your email and reference code.');
+      } else {
+        setResult(data[0]);
+      }
+    } catch (err) {
+      setErrorMsg('An error occurred during lookup.');
+    } finally {
       setIsSearching(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -781,6 +725,8 @@ function LookupView({ setView }) {
         <h2 className="text-2xl font-bold mb-2">Find Reservation</h2>
         <p className="text-sm text-slate-500 mb-6">Enter your details to check your booking status.</p>
         
+        {errorMsg && <p className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded">{errorMsg}</p>}
+
         {!result ? (
           <form onSubmit={handleLookup} className="space-y-4">
             <div>
@@ -802,11 +748,11 @@ function LookupView({ setView }) {
             </div>
             <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
             <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
-              <p className="flex justify-between"><span className="text-slate-500">Route:</span> <strong>{result.route}</strong></p>
-              <p className="flex justify-between"><span className="text-slate-500">Passengers:</span> <strong>{result.passengers}</strong></p>
+              <p className="flex justify-between"><span className="text-slate-500">Class:</span> <strong>{result.cabin_class.toUpperCase()}</strong></p>
+              <p className="flex justify-between"><span className="text-slate-500">Passengers:</span> <strong>{result.passenger_count}</strong></p>
               <div className="pt-2 mt-2 border-t border-slate-200">
                 <p className="text-slate-500 mb-1">Status:</p>
-                <p className="font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded inline-block text-xs">{result.status}</p>
+                <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-1 rounded inline-block text-xs uppercase tracking-wider">{result.payment_status.replace('_', ' ')}</p>
               </div>
             </div>
             <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">
@@ -819,7 +765,7 @@ function LookupView({ setView }) {
   );
 }
 
-function AdminView({ setView, bookedSeatsCount }) {
+function AdminView({ setView, flightStatus }) {
   const [auth, setAuth] = useState(false);
   const [pin, setPin] = useState('');
 
@@ -837,43 +783,26 @@ function AdminView({ setView, bookedSeatsCount }) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 animate-in fade-in">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-[#0a192f]">Flight Overview</h1>
-        <button onClick={() => setView('landing')} className="text-slate-500 hover:text-slate-900 font-medium">Exit Admin</button>
+        <h1 className="text-3xl font-bold text-[#0a192f]">Live Flight Overview</h1>
+        <button onClick={() => setView('landing')} className="text-slate-500 hover:text-slate-900 font-medium">Exit</button>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Sold</p>
-          <p className="text-4xl font-extrabold text-[#0a192f]">{bookedSeatsCount}</p>
+          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Seats Reserved</p>
+          <p className="text-4xl font-extrabold text-[#0a192f]">{flightStatus.seats_reserved}</p>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Remaining</p>
-          <p className="text-4xl font-extrabold text-blue-600">{FLIGHT_INFO.totalSeats - bookedSeatsCount}</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Revenue (Est)</p>
-          <p className="text-4xl font-extrabold text-green-600">${(bookedSeatsCount * 2200).toLocaleString()}</p>
+          <p className="text-4xl font-extrabold text-blue-600">{flightStatus.seats_remaining}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700">Recent Bookings (Mock Data)</div>
-        <table className="w-full text-sm text-left">
-          <thead className="bg-white border-b border-slate-100 text-slate-500 uppercase text-xs">
-            <tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Seats</th><th className="px-6 py-3">Payment</th><th className="px-6 py-3">Status</th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            <tr className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-medium">John Doe</td><td className="px-6 py-4">2 (Economy)</td><td className="px-6 py-4">Credit Card</td><td className="px-6 py-4"><span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Confirmed</span></td>
-            </tr>
-            <tr className="hover:bg-slate-50">
-              <td className="px-6 py-4 font-medium">Sarah Smith</td><td className="px-6 py-4">1 (Business)</td><td className="px-6 py-4">Wire</td><td className="px-6 py-4"><span className="text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs font-bold">Pending Wire</span></td>
-            </tr>
-          </tbody>
-        </table>
-        <div className="p-4 bg-slate-50 text-xs text-slate-500 italic text-center border-t border-slate-200">
-          For full manifest exports and passenger details, please use the Supabase Dashboard.
-        </div>
+      <div className="p-4 bg-slate-50 text-sm text-slate-600 border border-slate-200 rounded-xl">
+        <p className="font-bold text-slate-800 mb-2">Operations Guide:</p>
+        <p>1. To view individual bookings and confirm wires, log into your <strong>Supabase Dashboard</strong>.</p>
+        <p>2. Open the <code>bookings</code> table to manage statuses.</p>
+        <p>3. Open the <code>passengers</code> table to export your CSV manifest for Chapman Freeborn.</p>
       </div>
     </div>
   );
