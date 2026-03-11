@@ -2,15 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
-// --- SUPABASE INITIALIZATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || '0000'; // Falls back to 0000 only if env is missing
 
 const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
   : null;
 
-// --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
   routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
   routeSub: 'Direct Charter Flight',
@@ -41,7 +40,7 @@ export default function App() {
   const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
-  // Supabase Auth Setup
+  // Hardened Auth Setup
   useEffect(() => {
     if (!supabase) {
       setAuthInitialized(true);
@@ -50,15 +49,19 @@ export default function App() {
     }
     const initAuth = async () => {
       const { data, error } = await supabase.auth.signInAnonymously();
-      if (!error) setUser(data.user);
+      // Safely access data.user as recommended
+      if (!error) setUser(data?.user ?? data);
       setAuthInitialized(true);
     };
     initAuth();
   }, []);
 
-  // Supabase Data Fetching
+  // Hardened Channel Subscription
   useEffect(() => {
     if (!supabase || !user) return;
+    
+    let channel;
+    
     const fetchInitialCount = async () => {
       const { data, error } = await supabase.from('flight_status').select('*').eq('id', 1).single();
       if (!error && data) setFlightStatus(data);
@@ -66,13 +69,16 @@ export default function App() {
     };
     fetchInitialCount();
 
-    const channel = supabase.channel('status_updates')
+    channel = supabase.channel('status_updates')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'flight_status' }, payload => {
         setFlightStatus(payload.new);
       })
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    // Clean up channel accurately
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const handleSelectCabin = (cabinId) => {
@@ -698,7 +704,7 @@ function LookupView({ setView, supabase }) {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Booking Reference</label>
-              <input type="text" value={ref} onChange={(e)=>setRef(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="e.g. 8F92A1B0" required />
+              <input type="text" value={ref} onChange={(e)=>setRef(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="e.g. 8F92A1" required />
             </div>
             <button type="submit" disabled={isSearching} className="w-full bg-[#0a192f] text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors mt-4">
               {isSearching ? 'Searching...' : 'Lookup Booking'}
@@ -736,7 +742,7 @@ function AdminView({ setView, flightStatus }) {
         <Lock className="mx-auto text-slate-400 mb-4" size={32} />
         <h2 className="text-xl font-bold mb-4">Admin Dashboard</h2>
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Enter PIN" className="w-full border border-slate-300 rounded p-2 text-center tracking-widest mb-4" />
-        <button onClick={() => pin === '0000' ? setAuth(true) : alert('Invalid')} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Login</button>
+        <button onClick={() => pin === ADMIN_PIN ? setAuth(true) : alert('Invalid')} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Login</button>
       </div>
     );
   }
