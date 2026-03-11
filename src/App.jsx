@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
+import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // --- SUPABASE INITIALIZATION ---
@@ -12,19 +12,19 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
-  routeMain: 'Israel to Major European Hub',
-  routeSub: 'e.g., LHR, FRA, or CDG',
+  routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
+  routeSub: 'Direct Charter Flight',
   dateMain: 'March 18',
   dateSub: '±1 day depending on airspace approval',
   operator: 'Operated by a licensed carrier arranged through Chapman Freeborn',
-  aircraft: 'Airbus A340',
+  aircraft: 'Airbus A340-300 (widebody) — 38 Business seats + 215 Economy seats',
   totalSeats: 253
 };
 
 const CABIN_CLASSES = {
-  economy: { id: 'economy', name: 'Economy Class', price: 2150, features: ['Standard seating', 'Full cabin service', 'Standard boarding'], color: 'bg-slate-600' },
-  premium: { id: 'premium', name: 'Economy+', price: 2350, features: ['Front section seating', 'Priority boarding', 'Expedited deplaning'], color: 'bg-indigo-600' },
-  business: { id: 'business', name: 'Business', price: 4500, features: ['Lie-flat seating', 'Priority boarding', 'Premium cabin service'], color: 'bg-blue-900' }
+  economy: { id: 'economy', name: 'Economy Class', price: 2150, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
+  premium: { id: 'premium', name: 'Economy+', price: 2350, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
+  business: { id: 'business', name: 'Business', price: 3500, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
 };
 
 const COUNTRY_CODES = [
@@ -49,7 +49,7 @@ export default function App() {
   // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
-      console.error("Supabase credentials missing! Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env.local file.");
+      console.error("Supabase credentials missing!");
       setAuthInitialized(true);
       setLoadingData(false);
       return;
@@ -67,15 +67,13 @@ export default function App() {
     initAuth();
   }, []);
 
-  // Supabase Data Fetching (Seat Count)
+  // Supabase Data Fetching
   useEffect(() => {
     if (!supabase || !user) return;
 
     const fetchInitialCount = async () => {
       const { data, error } = await supabase.from('seat_counts').select('count');
-      if (error) {
-        console.error("Error fetching seats:", error);
-      } else if (data) {
+      if (!error && data) {
         const total = data.reduce((sum, row) => sum + row.count, 0);
         setBookedSeatsCount(total);
       }
@@ -90,9 +88,7 @@ export default function App() {
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => supabase.removeChannel(channel);
   }, [user]);
 
   const handleSelectCabin = (cabinId) => {
@@ -102,6 +98,7 @@ export default function App() {
   };
 
   const seatsAvailable = Math.max(0, FLIGHT_INFO.totalSeats - bookedSeatsCount);
+  const showPublicCount = bookedSeatsCount >= 30;
 
   if (!authInitialized || loadingData) {
     return (
@@ -117,7 +114,7 @@ export default function App() {
         <div className="max-w-md bg-white p-6 rounded-lg shadow-md border border-red-200">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold mb-2">Supabase Configuration Missing</h2>
-          <p className="text-slate-600 mb-4">You need to add your Supabase URL and Anon Key to a <code>.env.local</code> file in your project folder to run this site.</p>
+          <p className="text-slate-600 mb-4">You need to add your Supabase URL and Anon Key to a <code>.env.local</code> file.</p>
         </div>
       </div>
     );
@@ -128,13 +125,15 @@ export default function App() {
       <Navbar setView={setView} />
       <main className="flex-grow">
         {view === 'landing' && (
-          <LandingView onSelectCabin={handleSelectCabin} seatsAvailable={seatsAvailable} />
+          <LandingView onSelectCabin={handleSelectCabin} seatsAvailable={seatsAvailable} showPublicCount={showPublicCount} />
         )}
         {view === 'booking' && (
           <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} />
         )}
+        {view === 'lookup' && <LookupView setView={setView} />}
+        {view === 'admin' && <AdminView setView={setView} bookedSeatsCount={bookedSeatsCount} />}
       </main>
-      <Footer />
+      <Footer setView={setView} />
     </div>
   );
 }
@@ -150,8 +149,13 @@ function Navbar({ setView }) {
             <Plane className="h-6 w-6 text-blue-400" />
             <span className="font-bold text-xl tracking-tight">Israel Rescues</span>
           </div>
-          <div className="text-sm font-medium text-slate-300 hidden sm:block">
-            Help@IsraelRescues.com
+          <div className="flex items-center gap-6">
+            <button onClick={() => setView('lookup')} className="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-1">
+              <Search size={16}/> Find Reservation
+            </button>
+            <div className="text-sm font-medium text-slate-300 hidden sm:block">
+              Help@IsraelRescues.com
+            </div>
           </div>
         </div>
       </div>
@@ -159,29 +163,23 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onSelectCabin, seatsAvailable }) {
+function LandingView({ onSelectCabin, seatsAvailable, showPublicCount }) {
   const [openFaq, setOpenFaq] = useState(null);
 
-  const toggleFaq = (index) => {
-    setOpenFaq(openFaq === index ? null : index);
-  };
+  const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
   const faqs = [
     { q: "When will the flight be confirmed?", a: "The flight will be confirmed once sufficient seats are reserved and the aircraft contract is finalized. We expect this to be a minimum of 2-3 days before departure." },
     { q: "When will I know the exact departure time?", a: "Passengers will receive a confirmation email with the exact departure time once the aircraft is secured and regulatory approvals are finalized." },
-    { q: "Can I get a refund?", a: "Yes. If the flight does not operate, you will receive a full refund minus payment processing fees." },
-    { q: "Will families sit together?", a: "Yes. Families and groups booking together will be seated together whenever possible." }
+    { q: "Can I get a refund?", a: "Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled." },
+    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
   ];
 
   return (
     <div className="animate-in fade-in duration-500 pb-16">
       <div className="relative bg-[#0a192f] text-white py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" 
-            alt="Widebody Aircraft" 
-            className="w-full h-full object-cover opacity-25"
-          />
+          <img src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/80 to-transparent"></div>
         </div>
         
@@ -190,7 +188,7 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             <Plane size={16} /> Emergency Charter Flight
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4 max-w-3xl">
-            Israel to Europe <br className="hidden sm:block"/> Charter Flight
+            Israel to Frankfurt <br className="hidden sm:block"/> Charter Flight
           </h1>
           <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mb-8 leading-relaxed">
             {FLIGHT_INFO.operator}. Direct charter flight providing immediate outbound travel.
@@ -210,7 +208,11 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
-              <p className="font-bold text-xl text-blue-300">{seatsAvailable} Seats Remaining</p>
+              {showPublicCount ? (
+                <p className="font-bold text-xl text-blue-300">{seatsAvailable} Seats Remaining</p>
+              ) : (
+                <p className="font-bold text-base text-blue-300 mt-1">Limited seats available — reserve now</p>
+              )}
             </div>
           </div>
         </div>
@@ -222,14 +224,14 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0"><ShieldCheck size={20} /></div>
             <div>
               <h3 className="font-bold text-base mb-1 text-slate-900">100% Refundable</h3>
-              <p className="text-slate-600">All ticket purchases are fully refundable if the flight does not operate.</p>
+              <p className="text-slate-600">All ticket purchases are fully refundable if the charter flight does not operate.</p>
             </div>
           </div>
           <div className="flex gap-3 items-start">
             <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><CheckCircle size={20} /></div>
             <div>
               <h3 className="font-bold text-base mb-1 text-slate-900">Instant Reservation</h3>
-              <p className="text-slate-600">Seats are reserved once payment is received. Exact date and destination confirmed 2-3 days before departure.</p>
+              <p className="text-slate-600">Seats are reserved once payment is received. Exact date and time confirmed 2-3 days before departure.</p>
             </div>
           </div>
           <div className="flex gap-3 items-start">
@@ -276,7 +278,6 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
           ))}
         </div>
 
-        {/* Section: Why This Charter Flight */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold mb-8 text-center text-[#0a192f]">Why This Charter Flight</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -288,7 +289,7 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
               <div className="bg-blue-50 p-3 rounded-full mb-4"><Plane size={24} className="text-blue-600" /></div>
               <h4 className="font-bold text-slate-900 mb-2">Fast onward connections</h4>
-              <p className="text-sm text-slate-600">Arrive at a major European hub for easy onward flights to international destinations.</p>
+              <p className="text-sm text-slate-600">Arrive in Frankfurt (FRA) for easy onward flights to international destinations.</p>
             </div>
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
               <div className="bg-blue-50 p-3 rounded-full mb-4"><Users size={24} className="text-blue-600" /></div>
@@ -298,48 +299,41 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
               <div className="bg-blue-50 p-3 rounded-full mb-4"><ShieldCheck size={24} className="text-blue-600" /></div>
               <h4 className="font-bold text-slate-900 mb-2">Widebody aircraft comfort</h4>
-              <p className="text-sm text-slate-600">Operated on a widebody aircraft with both business and economy cabins.</p>
+              <p className="text-sm text-slate-600">Operated on a widebody {FLIGHT_INFO.aircraft}.</p>
             </div>
           </div>
           <p className="text-center text-sm mt-6 text-slate-500 italic px-4 max-w-3xl mx-auto">
-            Frankfurt, London and Paris are some of Europe's largest aviation hubs, offering dozens of daily flights to North America and other international destinations.
+            Frankfurt is one of Europe's largest aviation hubs, offering dozens of daily flights to North America and other international destinations.
           </p>
         </div>
 
-        {/* Section: Important Info & Legal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
           <div className="bg-amber-50 p-8 rounded-xl border border-amber-200 text-amber-900 shadow-sm">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><AlertCircle size={24} className="text-amber-600"/> Important Info</h2>
             <div className="space-y-4 text-sm">
-              <p><strong>Destination:</strong> The final destination airport will be confirmed once the aircraft is secured and regulatory approvals are received. The intended destination is Frankfurt or London.</p>
+              <p><strong>Check-in & Security:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure for check-in and security procedures.</p>
+              <p><strong>Destination:</strong> This flight will land directly at Frankfurt Airport (FRA).</p>
               <p><strong>Onward Travel:</strong> Passengers should <strong>not</strong> book onward travel until the charter flight is fully confirmed.</p>
               <p><strong>Availability:</strong> Due to high demand, reservations may be limited and availability cannot be guaranteed until payment is completed.</p>
+              <p><strong>Seating Arrangements:</strong> We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate.</p>
             </div>
           </div>
           
           <div className="bg-slate-100 p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><FileText size={24} className="text-slate-600"/> Legal Notice</h2>
             <div className="text-sm text-slate-600 space-y-4 leading-relaxed">
-              <p>
-                This is a privately organized charter flight arranged through a licensed aircraft charter broker.
-              </p>
-              <p>
-                * If the charter flight cannot be operated for any reason, passengers will receive a full refund of the ticket price, less any non-refundable payment processing fees charged by the payment provider (typically ~3%). Once the aircraft is confirmed and the flight is scheduled, tickets become non-refundable except in the event the flight is cancelled.
-              </p>
+              <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker.</p>
+              <p>Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled.</p>
             </div>
           </div>
         </div>
 
-        {/* Section: FAQs */}
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl font-bold flex justify-center items-center gap-2 mb-8 text-[#0a192f]"><HelpCircle size={28} className="text-blue-600"/> Frequently Asked Questions</h2>
           <div className="space-y-3">
             {faqs.map((faq, idx) => (
               <div key={idx} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-                <button 
-                  onClick={() => toggleFaq(idx)}
-                  className="w-full px-6 py-4 text-left font-bold text-slate-900 flex justify-between items-center hover:bg-slate-50"
-                >
+                <button onClick={() => toggleFaq(idx)} className="w-full px-6 py-4 text-left font-bold text-slate-900 flex justify-between items-center hover:bg-slate-50">
                   {faq.q}
                   {openFaq === idx ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
                 </button>
@@ -352,7 +346,6 @@ function LandingView({ onSelectCabin, seatsAvailable }) {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );
@@ -380,11 +373,9 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
 
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
-    
     if (field === 'phone' || field === 'emergencyPhone') {
       value = value.replace(/[^\d\-\s()]/g, '');
     }
-    
     newPass[index][field] = value;
     setPassengers(newPass);
     setFormErrors(formErrors.filter(e => !(e.index === index && e.field === field)));
@@ -392,8 +383,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
 
   const addPassenger = () => {
     setPassengers([...passengers, { 
-      firstName: '', middleName: '', lastName: '', 
-      email: '', phoneCode: '+1', phone: '', 
+      firstName: '', middleName: '', lastName: '', email: '', phoneCode: '+1', phone: '', 
       emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
       passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' 
     }]);
@@ -440,58 +430,50 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
       alert("You must agree to the Terms & Conditions to proceed.");
       return;
     }
-    
     setIsProcessing(true);
 
     try {
       const { data: bookingData, error: bookingError } = await supabase
         .from('bookings')
-        .insert([
-          {
+        .insert([{
             user_id: user.id,
             passengers: passengers,
             cabin_class: selectedCabin,
             total_paid: paymentMethod === 'cc' ? totalAmount : 0, 
             payment_method: paymentMethod,
-            status: paymentMethod === 'cc' ? 'confirmed' : 'awaiting_wire'
-          }
-        ])
-        .select();
+            status: 'pending' 
+        }]).select();
 
       if (bookingError) throw bookingError;
-
       const newBookingId = bookingData[0].id;
-
-      const { error: countError } = await supabase
-        .from('seat_counts')
-        .insert([
-          {
-            booking_id: newBookingId,
-            count: passengers.length
-          }
-        ]);
-
-      if (countError) throw countError;
-      
       setBookingRef(newBookingId.split('-')[0].toUpperCase());
-      setStep(3);
-      window.scrollTo(0,0);
 
+      // Note: Server-Side API Call Placeholder
+      // await fetch('/api/reserve', { method: 'POST', body: JSON.stringify({ reservationId: newBookingId, seats: passengers.length, cabin: selectedCabin }) });
+      
+      if (paymentMethod === 'cc') {
+        setTimeout(() => {
+          setStep(3);
+          window.scrollTo(0,0);
+          setIsProcessing(false);
+        }, 1500);
+      } else {
+        setStep(3);
+        window.scrollTo(0,0);
+        setIsProcessing(false);
+      }
     } catch (error) {
       console.error("Booking error:", error);
-      alert("An error occurred while processing your booking. Please check your connection and try again.");
-    } finally {
+      alert("An error occurred while processing your booking. Please try again.");
       setIsProcessing(false);
     }
   };
 
   const hasError = (index, field) => formErrors.some(e => e.index === index && e.field === field);
-
   const inputClass = (index, field) => `w-full border rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 ${hasError(index, field) ? 'border-red-500 bg-red-50' : 'border-slate-300'}`;
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in slide-in-from-bottom-4 duration-500">
-      
       <div className="mb-8">
         <button onClick={() => { setView('landing'); window.scrollTo(0,0); }} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
           &larr; Back to Flight Details
@@ -509,7 +491,6 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        
         {step === 1 && (
           <div className="p-6 sm:p-8">
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Users size={20} className="text-blue-600"/> Passenger Information</h2>
@@ -523,13 +504,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <div className="space-y-8">
               {passengers.map((p, index) => (
                 <div key={index} className="bg-slate-50 border border-slate-200 rounded-lg p-5 relative">
-                  {index > 0 && (
-                    <button onClick={() => removePassenger(index)} className="absolute top-4 right-4 text-red-500 text-sm font-bold hover:underline">
-                      Remove
-                    </button>
-                  )}
+                  {index > 0 && <button onClick={() => removePassenger(index)} className="absolute top-4 right-4 text-red-500 text-sm font-bold hover:underline">Remove</button>}
                   <h3 className="font-semibold text-lg mb-4 text-slate-800 border-b border-slate-200 pb-2">Passenger {index + 1}</h3>
-                  
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">First Name *</label>
@@ -606,15 +582,11 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
                 </div>
               ))}
             </div>
-
             <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
               <button onClick={addPassenger} className="text-blue-600 font-bold hover:bg-blue-50 px-4 py-2 rounded transition-colors w-full sm:w-auto border border-blue-200">
                 + Add Another Passenger
               </button>
-              <button 
-                onClick={handleContinueToPayment}
-                className="w-full sm:w-auto bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors"
-              >
+              <button onClick={handleContinueToPayment} className="w-full sm:w-auto bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
                 Continue to Payment
               </button>
             </div>
@@ -626,18 +598,12 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div 
-                onClick={() => setPaymentMethod('cc')}
-                className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'cc' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
-              >
+              <div onClick={() => setPaymentMethod('cc')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'cc' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                 <CreditCard size={32} className={`mb-2 ${paymentMethod === 'cc' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Credit Card</h3>
                 <p className="text-xs text-slate-500 mt-1">Instant confirmation. 3% processing fee applies.</p>
               </div>
-              <div 
-                onClick={() => setPaymentMethod('wire')}
-                className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
-              >
+              <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
                 <p className="text-xs text-slate-500 mt-1">No fees. Must be wired within 6 hours to confirm seat.</p>
@@ -665,35 +631,15 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
 
               {paymentMethod === 'cc' && (
                 <div className="mt-6 border-t border-slate-200 pt-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="font-semibold text-sm">Card & Billing Details</span>
-                    <Lock size={14} className="text-slate-400" />
-                  </div>
-                  
-                  <div className="border border-slate-300 rounded-md overflow-hidden bg-white focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all mb-4">
-                    <input type="text" placeholder="Card number" name="cc-number" autoComplete="cc-number" className="w-full p-3 outline-none border-b border-slate-200 text-sm" required pattern="\d*" maxLength="16" />
-                    <div className="flex">
-                      <input type="text" placeholder="MM / YY" name="cc-exp" autoComplete="cc-exp" className="w-1/2 p-3 outline-none border-r border-slate-200 text-sm" required maxLength="5" />
-                      <input type="text" placeholder="CVC" name="cc-csc" autoComplete="cc-csc" className="w-1/2 p-3 outline-none text-sm" required maxLength="4" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
-                    <div className="sm:col-span-2">
-                      <input type="text" placeholder="Name on Card" name="cc-name" autoComplete="cc-name" className="w-full border border-slate-300 rounded-md p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" required defaultValue={`${passengers[0].firstName} ${passengers[0].lastName}`} />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <input type="text" placeholder="Billing Address" name="street-address" autoComplete="street-address" className="w-full border border-slate-300 rounded-md p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" required />
-                    </div>
+                  <div className="bg-white p-4 rounded-lg flex items-start gap-3 border border-slate-200 shadow-sm">
+                    <ShieldCheck className="text-blue-600 shrink-0 mt-0.5" size={20} />
                     <div>
-                      <input type="text" placeholder="City" name="address-level2" autoComplete="address-level2" className="w-full border border-slate-300 rounded-md p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" required />
-                    </div>
-                    <div>
-                      <input type="text" placeholder="ZIP / Postal Code" name="postal-code" autoComplete="postal-code" className="w-full border border-slate-300 rounded-md p-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white" required />
+                      <p className="font-bold text-sm text-slate-800">Secure Stripe Checkout</p>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Upon clicking "Proceed to Secure Checkout", you will be safely redirected to our encrypted Stripe payment portal. We do not store any credit card information on our servers.
+                      </p>
                     </div>
                   </div>
-                  
-                  <p className="text-[10px] text-slate-500 text-center mt-3">Payments are secure and encrypted. Refundable if flight does not operate.</p>
                 </div>
               )}
 
@@ -710,42 +656,28 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <div className="mb-8">
               <h3 className="font-bold mb-3 flex items-center gap-2"><FileText size={18}/> Terms & Conditions</h3>
               <div className="bg-slate-100 p-4 rounded-lg text-xs text-slate-700 space-y-2 h-32 overflow-y-auto border border-slate-200 mb-4">
-                <p>By purchasing a ticket you acknowledge that:</p>
+                <p>Refund policy. All ticket purchases are fully refundable if the charter flight does not operate. If the charter does not operate, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the aircraft contract is executed and the flight is confirmed, tickets become non-refundable except in the event the flight is cancelled.</p>
+                <p className="mt-2">By purchasing a ticket you acknowledge that:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>This is a privately organized charter flight.</li>
                   <li>The flight will operate once the aircraft is secured and approvals are received.</li>
                   <li>The destination airport may change based on operational considerations.</li>
                   <li>Passengers are responsible for any onward travel arrangements.</li>
-                  <li>Tickets become non-refundable once the charter flight is confirmed.</li>
-                  <li>If the flight does not operate, passengers will receive a full refund minus payment processing fees.</li>
                 </ul>
               </div>
               <label className="flex items-start gap-3 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={agreedToTerms} 
-                  onChange={(e) => setAgreedToTerms(e.target.checked)} 
-                  className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" 
-                />
-                <span className="text-sm font-medium text-slate-800">
-                  I agree to the Terms & Conditions.
-                </span>
+                <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                <span className="text-sm font-medium text-slate-800">I agree to the Terms & Conditions.</span>
               </label>
             </div>
 
             <div className="flex justify-between items-center border-t border-slate-200 pt-6">
-              <button type="button" onClick={() => setStep(1)} className="text-slate-500 font-medium hover:text-slate-800 px-4 py-2">
-                &larr; Back
-              </button>
-              <button 
-                type="submit" 
-                disabled={isProcessing || !agreedToTerms}
-                className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2"
-              >
+              <button type="button" onClick={() => setStep(1)} className="text-slate-500 font-medium hover:text-slate-800 px-4 py-2">&larr; Back</button>
+              <button type="submit" disabled={isProcessing || !agreedToTerms} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2">
                 {isProcessing ? (
                   <><div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div> Processing...</>
                 ) : (
-                  paymentMethod === 'cc' ? `Pay $${totalAmount.toLocaleString()}` : 'Complete Reservation'
+                  paymentMethod === 'cc' ? `Proceed to Secure Checkout` : 'Complete Reservation'
                 )}
               </button>
             </div>
@@ -757,16 +689,21 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
             <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle size={40} />
             </div>
-            <h2 className="text-3xl font-extrabold mb-2">Reservation Secured</h2>
             
             {paymentMethod === 'cc' ? (
-              <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-                Your payment has been processed and a receipt has been emailed to {passengers[0].email}.
-              </p>
+              <>
+                <h2 className="text-3xl font-extrabold mb-2">Seat Reserved</h2>
+                <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
+                  Your payment has been successfully processed and a receipt has been emailed to {passengers[0].email}.
+                </p>
+              </>
             ) : (
-              <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-                Your reservation is held. <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
-              </p>
+              <>
+                <h2 className="text-3xl font-extrabold mb-2">Reservation Held</h2>
+                <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
+                  <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
+                </p>
+              </>
             )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 max-w-sm mx-auto mb-8 text-left">
@@ -779,16 +716,27 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
               <p className="text-sm text-slate-500 mb-2">Status</p>
               {paymentMethod === 'cc' ? (
                 <div>
-                  <p className="font-semibold text-green-700 bg-green-100 border border-green-200 inline-block px-2 py-0.5 rounded text-sm">Seat Reserved</p>
-                  <p className="text-xs text-slate-500 mt-2 leading-tight">Your seat has been reserved on the upcoming charter flight. Final departure timing will be confirmed once Israeli airspace clearance is received.</p>
+                  <p className="font-semibold text-[#0a192f] bg-blue-100 border border-blue-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
+                    Seat Reserved — pending final confirmation
+                  </p>
+                  <p className="text-xs text-slate-500 leading-tight">
+                    Seat has been reserved. Final departure time and hub will be emailed once the operator confirms the flight.
+                  </p>
                 </div>
               ) : (
-                <p className="font-semibold text-red-600 bg-red-100 inline-block px-2 py-0.5 rounded text-sm">Awaiting Wire Transfer</p>
+                <div>
+                  <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
+                    Reservation Held — awaiting wire transfer
+                  </p>
+                  <p className="text-xs text-slate-500 leading-tight">
+                    Wire must be received within 6 hours to guarantee seats.
+                  </p>
+                </div>
               )}
             </div>
 
             <p className="text-sm text-slate-500 mb-8 max-w-md mx-auto">
-              If you have any questions or need to make adjustments to your passport information, please contact <strong>Help@IsraelRescues.com</strong>.
+              If you have any questions or need to make adjustments, please contact <strong>Help@IsraelRescues.com</strong>.
             </p>
 
             <button onClick={() => { setView('landing'); window.scrollTo(0,0); }} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
@@ -801,7 +749,137 @@ function BookingFlow({ setView, selectedCabin, user, supabase }) {
   );
 }
 
-function Footer() {
+// --- NEW VIEWS: LOOKUP & ADMIN ---
+
+function LookupView({ setView }) {
+  const [email, setEmail] = useState('');
+  const [ref, setRef] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const handleLookup = (e) => {
+    e.preventDefault();
+    setIsSearching(true);
+    
+    // Placeholder for actual lookup fetch
+    setTimeout(() => {
+      setResult({
+        status: 'Pending Final Approval',
+        passengers: 1, 
+        route: 'TLV → FRA'
+      });
+      setIsSearching(false);
+    }, 1000);
+  };
+
+  return (
+    <div className="max-w-md mx-auto px-4 py-16 animate-in fade-in">
+      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
+        &larr; Back Home
+      </button>
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+        <h2 className="text-2xl font-bold mb-2">Find Reservation</h2>
+        <p className="text-sm text-slate-500 mb-6">Enter your details to check your booking status.</p>
+        
+        {!result ? (
+          <form onSubmit={handleLookup} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address</label>
+              <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Booking Reference</label>
+              <input type="text" value={ref} onChange={(e)=>setRef(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="e.g. 8F92A1B0" required />
+            </div>
+            <button type="submit" disabled={isSearching} className="w-full bg-[#0a192f] text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors mt-4">
+              {isSearching ? 'Searching...' : 'Lookup Booking'}
+            </button>
+          </form>
+        ) : (
+          <div className="text-center">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle size={24} />
+            </div>
+            <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
+            <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
+              <p className="flex justify-between"><span className="text-slate-500">Route:</span> <strong>{result.route}</strong></p>
+              <p className="flex justify-between"><span className="text-slate-500">Passengers:</span> <strong>{result.passengers}</strong></p>
+              <div className="pt-2 mt-2 border-t border-slate-200">
+                <p className="text-slate-500 mb-1">Status:</p>
+                <p className="font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded inline-block text-xs">{result.status}</p>
+              </div>
+            </div>
+            <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">
+              Look up another
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AdminView({ setView, bookedSeatsCount }) {
+  const [auth, setAuth] = useState(false);
+  const [pin, setPin] = useState('');
+
+  if (!auth) {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-24 text-center">
+        <Lock className="mx-auto text-slate-400 mb-4" size={32} />
+        <h2 className="text-xl font-bold mb-4">Admin Dashboard</h2>
+        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="Enter PIN" className="w-full border border-slate-300 rounded p-2 text-center tracking-widest mb-4" />
+        <button onClick={() => pin === '0000' ? setAuth(true) : alert('Invalid')} className="w-full bg-slate-900 text-white py-2 rounded font-bold">Login</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-12 animate-in fade-in">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold text-[#0a192f]">Flight Overview</h1>
+        <button onClick={() => setView('landing')} className="text-slate-500 hover:text-slate-900 font-medium">Exit Admin</button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Sold</p>
+          <p className="text-4xl font-extrabold text-[#0a192f]">{bookedSeatsCount}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Remaining</p>
+          <p className="text-4xl font-extrabold text-blue-600">{FLIGHT_INFO.totalSeats - bookedSeatsCount}</p>
+        </div>
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Revenue (Est)</p>
+          <p className="text-4xl font-extrabold text-green-600">${(bookedSeatsCount * 2200).toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700">Recent Bookings (Mock Data)</div>
+        <table className="w-full text-sm text-left">
+          <thead className="bg-white border-b border-slate-100 text-slate-500 uppercase text-xs">
+            <tr><th className="px-6 py-3">Name</th><th className="px-6 py-3">Seats</th><th className="px-6 py-3">Payment</th><th className="px-6 py-3">Status</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            <tr className="hover:bg-slate-50">
+              <td className="px-6 py-4 font-medium">John Doe</td><td className="px-6 py-4">2 (Economy)</td><td className="px-6 py-4">Credit Card</td><td className="px-6 py-4"><span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Confirmed</span></td>
+            </tr>
+            <tr className="hover:bg-slate-50">
+              <td className="px-6 py-4 font-medium">Sarah Smith</td><td className="px-6 py-4">1 (Business)</td><td className="px-6 py-4">Wire</td><td className="px-6 py-4"><span className="text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs font-bold">Pending Wire</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="p-4 bg-slate-50 text-xs text-slate-500 italic text-center border-t border-slate-200">
+          For full manifest exports and passenger details, please use the Supabase Dashboard.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Footer({ setView }) {
   return (
     <footer className="bg-slate-900 text-slate-400 py-10 mt-auto border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -813,7 +891,11 @@ function Footer() {
           </div>
           <div className="text-center md:text-right text-sm">
             <p className="mb-1">Contact: <a href="mailto:Help@IsraelRescues.com" className="text-blue-400 hover:underline">Help@IsraelRescues.com</a></p>
-            <p className="text-slate-500">&copy; {new Date().getFullYear()} Rescue Charters LLC. All rights reserved.</p>
+            <div className="flex items-center justify-center md:justify-end gap-3 mt-2">
+              <p className="text-slate-500">&copy; {new Date().getFullYear()} Rescue Charters LLC.</p>
+              <span className="text-slate-700">|</span>
+              <button onClick={() => { setView('admin'); window.scrollTo(0,0); }} className="text-slate-600 hover:text-slate-400 transition-colors">Admin</button>
+            </div>
           </div>
         </div>
       </div>
