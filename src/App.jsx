@@ -48,9 +48,33 @@ const formatPhoneNumber = (value) => {
 export default function App() {
   const [user, setUser] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [view, setView] = useState('landing');
-  const [selectedCabin, setSelectedCabin] = useState('economy');
   
+  // --- HASH ROUTING LOGIC ---
+  const [view, setViewState] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    return ['landing', 'booking', 'lookup', 'admin'].includes(hash) ? hash : 'landing';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validView = ['landing', 'booking', 'lookup', 'admin'].includes(hash) ? hash : 'landing';
+      setViewState(validView);
+      window.scrollTo(0, 0); // Ensure page starts at the top when navigating
+    };
+    
+    // Listen to browser Back/Forward arrows
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update hash instead of raw state so URLs become shareable (e.g., [site.com/#lookup](https://site.com/#lookup))
+  const setView = (newView) => {
+    window.location.hash = newView;
+  };
+  // --------------------------
+
+  const [selectedCabin, setSelectedCabin] = useState('economy');
   const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
@@ -96,7 +120,6 @@ export default function App() {
   const handleSelectCabin = (cabinId) => {
     setSelectedCabin(cabinId);
     setView('booking');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const showPublicCount = flightStatus.seats_reserved >= 30;
@@ -124,7 +147,7 @@ function Navbar({ setView }) {
     <nav className="bg-[#0a192f] text-white sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('landing'); window.scrollTo(0,0); }}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('landing')}>
             <Plane className="h-6 w-6 text-blue-400" />
             <span className="font-bold text-xl tracking-tight">Israel Rescues</span>
           </div>
@@ -351,7 +374,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const [isProcessing, setIsProcessing] = useState(false);
   const [bookingResponse, setBookingResponse] = useState(null); 
   const [formErrors, setFormErrors] = useState([]);
-  const [checkoutError, setCheckoutError] = useState(''); // NEW: Replaces standard alerts
+  const [checkoutError, setCheckoutError] = useState(''); 
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   const subtotal = cabinDetails.price * passengers.length;
@@ -453,7 +476,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8">
-        <button onClick={() => { setView('landing'); window.scrollTo(0,0); }} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
+        <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
           &larr; Back to Flight Details
         </button>
         <div className="flex justify-between items-end border-b border-slate-200 pb-4">
@@ -680,7 +703,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
               </div>
             </div>
 
-            <button onClick={() => { setView('landing'); window.scrollTo(0,0); }} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
+            <button onClick={() => setView('landing')} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
               Return to Homepage
             </button>
           </div>
@@ -821,7 +844,7 @@ function Footer({ setView }) {
             <div className="flex items-center justify-center md:justify-end gap-3 mt-2">
               <p className="text-slate-500">&copy; {new Date().getFullYear()} Rescue Charters LLC.</p>
               <span className="text-slate-700">|</span>
-              <button onClick={() => { setView('admin'); window.scrollTo(0,0); }} className="text-slate-600 hover:text-slate-400 transition-colors">Admin</button>
+              <button onClick={() => setView('admin')} className="text-slate-600 hover:text-slate-400 transition-colors">Admin</button>
             </div>
           </div>
         </div>
