@@ -6,9 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
-  : null;
+const supabase = (supabaseUrl && supabaseAnonKey) ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
@@ -38,18 +36,15 @@ export default function App() {
   const [view, setView] = useState('landing');
   const [selectedCabin, setSelectedCabin] = useState('economy');
   
-  // Driven by our new flight_status table
   const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
   const [loadingData, setLoadingData] = useState(true);
 
-  // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
       setAuthInitialized(true);
       setLoadingData(false);
       return;
     }
-
     const initAuth = async () => {
       const { data, error } = await supabase.auth.signInAnonymously();
       if (!error) setUser(data.user);
@@ -58,16 +53,13 @@ export default function App() {
     initAuth();
   }, []);
 
-  // Supabase Real-time Seat Fetching
   useEffect(() => {
     if (!supabase || !user) return;
-
     const fetchInitialCount = async () => {
       const { data, error } = await supabase.from('flight_status').select('*').eq('id', 1).single();
       if (!error && data) setFlightStatus(data);
       setLoadingData(false);
     };
-
     fetchInitialCount();
 
     const channel = supabase.channel('status_updates')
@@ -87,36 +79,15 @@ export default function App() {
 
   const showPublicCount = flightStatus.seats_reserved >= 30;
 
-  if (!authInitialized || loadingData) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
-      </div>
-    );
-  }
-
-  if (!supabase) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 text-center">
-        <div className="max-w-md bg-white p-6 rounded-lg shadow-md border border-red-200">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold mb-2">Supabase Configuration Missing</h2>
-          <p className="text-slate-600 mb-4">You need to add your Supabase URL and Anon Key to a <code>.env.local</code> file.</p>
-        </div>
-      </div>
-    );
-  }
+  if (!authInitialized || loadingData) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>;
+  if (!supabase) return <div className="min-h-screen flex items-center justify-center">Missing Supabase config.</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 flex flex-col">
       <Navbar setView={setView} />
       <main className="flex-grow">
-        {view === 'landing' && (
-          <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} />
-        )}
-        {view === 'booking' && (
-          <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} seatsRemaining={flightStatus.seats_remaining} />
-        )}
+        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} />}
+        {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} seatsRemaining={flightStatus.seats_remaining} />}
         {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
         {view === 'admin' && <AdminView setView={setView} flightStatus={flightStatus} />}
       </main>
@@ -124,8 +95,6 @@ export default function App() {
     </div>
   );
 }
-
-// --- COMPONENTS ---
 
 function Navbar({ setView }) {
   return (
@@ -152,7 +121,6 @@ function Navbar({ setView }) {
 
 function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
   const [openFaq, setOpenFaq] = useState(null);
-
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
   const faqs = [
@@ -194,7 +162,9 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
-              {showPublicCount ? (
+              {seatsRemaining <= 0 ? (
+                <p className="font-bold text-xl text-amber-400">Waitlist Open</p>
+              ) : showPublicCount ? (
                 <p className="font-bold text-xl text-blue-300">{seatsRemaining} Seats Remaining</p>
               ) : (
                 <p className="font-bold text-base text-blue-300 mt-1">Limited seats available — reserve now</p>
@@ -254,12 +224,10 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount }) {
               <div className="p-6 pt-0 mt-auto">
                 <button 
                   onClick={() => onSelectCabin(cabin.id)}
-                  disabled={seatsRemaining === 0}
                   className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
-                    ${seatsRemaining === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 
-                      cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                    ${cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
                 >
-                  {seatsRemaining === 0 ? 'Sold Out' : `Select ${cabin.name}`} {seatsRemaining > 0 && <ChevronRight size={18} />}
+                  {seatsRemaining <= 0 ? `Join Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
                 </button>
               </div>
             </div>
@@ -351,31 +319,25 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const [paymentMethod, setPaymentMethod] = useState('wire');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [bookingRef, setBookingRef] = useState('');
+  const [bookingResponse, setBookingResponse] = useState(null); // stores {ref, isWaitlist}
   const [formErrors, setFormErrors] = useState([]);
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   const subtotal = cabinDetails.price * passengers.length;
   const totalAmount = subtotal;
 
+  // Dynamic waitlist check: if the seats they want exceed what's left
+  const isWaitlistSpot = seatsRemaining < passengers.length;
+
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
-    if (field === 'phone' || field === 'emergencyPhone') {
-      value = value.replace(/[^\d\-\s()]/g, '');
-    }
+    if (field === 'phone' || field === 'emergencyPhone') value = value.replace(/[^\d\-\s()]/g, '');
     newPass[index][field] = value;
     setPassengers(newPass);
     setFormErrors(formErrors.filter(e => !(e.index === index && e.field === field)));
   };
 
-  const addPassenger = () => {
-    setPassengers([...passengers, { 
-      firstName: '', middleName: '', lastName: '', email: '', phoneCode: '+1', phone: '', 
-      emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
-      passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' 
-    }]);
-  };
-  
+  const addPassenger = () => setPassengers([...passengers, { firstName: '', middleName: '', lastName: '', email: '', phoneCode: '+1', phone: '', emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' }]);
   const removePassenger = (index) => {
     if (passengers.length > 1) {
       setPassengers(passengers.filter((_, i) => i !== index));
@@ -386,27 +348,23 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const validateStep1 = () => {
     let errors = [];
     passengers.forEach((p, i) => {
-      if (!p.firstName.trim()) errors.push({ index: i, field: 'firstName', msg: 'First Name is required' });
-      if (!p.lastName.trim()) errors.push({ index: i, field: 'lastName', msg: 'Last Name is required' });
-      if (!p.email.includes('@')) errors.push({ index: i, field: 'email', msg: 'Valid Email is required' });
-      if (p.phone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'phone', msg: 'Valid Phone is required' });
-      if (!p.emergencyName.trim()) errors.push({ index: i, field: 'emergencyName', msg: 'Emergency Contact Name required' });
-      if (p.emergencyPhone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'emergencyPhone', msg: 'Emergency Contact Phone required' });
-      if (!p.passport.trim()) errors.push({ index: i, field: 'passport', msg: 'Passport Number required' });
-      if (!p.passportExpiry) errors.push({ index: i, field: 'passportExpiry', msg: 'Passport Expiry required' });
-      if (!p.dob) errors.push({ index: i, field: 'dob', msg: 'Date of Birth required' });
-      if (!p.nationality.trim()) errors.push({ index: i, field: 'nationality', msg: 'Nationality required' });
-      if (!p.gender) errors.push({ index: i, field: 'gender', msg: 'Gender required' });
+      if (!p.firstName.trim()) errors.push({ index: i, field: 'firstName', msg: 'Required' });
+      if (!p.lastName.trim()) errors.push({ index: i, field: 'lastName', msg: 'Required' });
+      if (!p.email.includes('@')) errors.push({ index: i, field: 'email', msg: 'Required' });
+      if (p.phone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'phone', msg: 'Required' });
+      if (!p.emergencyName.trim()) errors.push({ index: i, field: 'emergencyName', msg: 'Required' });
+      if (p.emergencyPhone.replace(/\D/g, '').length < 7) errors.push({ index: i, field: 'emergencyPhone', msg: 'Required' });
+      if (!p.passport.trim()) errors.push({ index: i, field: 'passport', msg: 'Required' });
+      if (!p.passportExpiry) errors.push({ index: i, field: 'passportExpiry', msg: 'Required' });
+      if (!p.dob) errors.push({ index: i, field: 'dob', msg: 'Required' });
+      if (!p.nationality.trim()) errors.push({ index: i, field: 'nationality', msg: 'Required' });
+      if (!p.gender) errors.push({ index: i, field: 'gender', msg: 'Required' });
     });
     setFormErrors(errors);
     return errors.length === 0;
   };
 
   const handleContinueToPayment = () => {
-    if (passengers.length > seatsRemaining) {
-      alert(`Sorry, there are only ${seatsRemaining} seats left.`);
-      return;
-    }
     if (validateStep1()) {
       setStep(2);
       window.scrollTo(0,0);
@@ -417,15 +375,11 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
   const handleCheckout = async (e) => {
     e.preventDefault();
-    if (!agreedToTerms) {
-      alert("You must agree to the Terms & Conditions to proceed.");
-      return;
-    }
+    if (!agreedToTerms) return alert("You must agree to the Terms & Conditions to proceed.");
     setIsProcessing(true);
 
     try {
-      // Execute Atomic RPC Call
-      const { data: refId, error } = await supabase.rpc('make_reservation', {
+      const { data, error } = await supabase.rpc('make_reservation', {
         p_user_id: user.id,
         p_payment_method: paymentMethod,
         p_total_amount: totalAmount,
@@ -439,7 +393,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
       if (error) throw error;
       
-      setBookingRef(refId);
+      setBookingResponse({ ref: data.booking_ref, isWaitlist: data.is_waitlist });
       setStep(3);
       window.scrollTo(0,0);
     } catch (error) {
@@ -576,6 +530,13 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
         {step === 2 && (
           <form onSubmit={handleCheckout} className="p-6 sm:p-8 animate-in fade-in">
+            {isWaitlistSpot && (
+              <div className="bg-amber-100 border-l-4 border-amber-500 p-4 mb-8 text-amber-900 rounded-r shadow-sm">
+                <p className="font-bold flex items-center gap-2 mb-1"><AlertCircle size={18}/> Notice: This is a Waitlist Spot</p>
+                <p className="text-sm">The primary flight is currently full. By proceeding, you are joining the priority waitlist. If the waitlist fills (which it likely will), we will charter an additional flight for a departure date on or around March 18.</p>
+              </div>
+            )}
+
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -584,7 +545,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
                 <h3 className="font-bold">Credit Card</h3>
                 <p className="text-xs text-slate-500 mt-1">Credit card payments will be available shortly.</p>
               </div>
-              <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}>
+              <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
                 <p className="text-xs text-slate-500 mt-1">To reserve a seat immediately, payment can currently be made via wire transfer.</p>
@@ -606,7 +567,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
               {paymentMethod === 'wire' && (
                 <div className="mt-6 border-t border-slate-200 pt-6">
-                  <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm">
+                  <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm">
                     <p className="font-bold mb-1">Wire Transfer Selected</p>
                     <p>Upon clicking "Complete Reservation", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your seats on this flight.</p>
                   </div>
@@ -634,49 +595,45 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
 
             <div className="flex justify-between items-center border-t border-slate-200 pt-6">
               <button type="button" onClick={() => setStep(1)} className="text-slate-500 font-medium hover:text-slate-800 px-4 py-2">&larr; Back</button>
-              <button type="submit" disabled={isProcessing || !agreedToTerms} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 disabled:opacity-50 transition-colors flex items-center gap-2">
+              <button type="submit" disabled={isProcessing || !agreedToTerms} className={`text-white px-8 py-3 rounded-lg font-bold disabled:opacity-50 transition-colors flex items-center gap-2 ${isWaitlistSpot ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#0a192f] hover:bg-slate-800'}`}>
                 {isProcessing ? (
                   <><div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div> Processing...</>
                 ) : (
-                  'Complete Reservation'
+                  isWaitlistSpot ? 'Join Priority Waitlist' : 'Complete Reservation'
                 )}
               </button>
             </div>
           </form>
         )}
 
-        {step === 3 && (
+        {step === 3 && bookingResponse && (
           <div className="text-center py-16 px-6 animate-in zoom-in-95 duration-500">
-            <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${bookingResponse.isWaitlist ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>
               <CheckCircle size={40} />
             </div>
             
-            <h2 className="text-3xl font-extrabold mb-2">Reservation Held</h2>
+            <h2 className="text-3xl font-extrabold mb-2">{bookingResponse.isWaitlist ? 'Waitlist Spot Held' : 'Reservation Held'}</h2>
             <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
               <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
             </p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 max-w-sm mx-auto mb-8 text-left">
               <p className="text-sm text-slate-500 mb-1">Booking Reference</p>
-              <p className="text-2xl font-mono font-bold mb-4 tracking-wider text-[#0a192f]">{bookingRef}</p>
+              <p className="text-2xl font-mono font-bold mb-4 tracking-wider text-[#0a192f]">{bookingResponse.ref}</p>
               
-              <p className="text-sm text-slate-500 mb-1">Seats Reserved</p>
+              <p className="text-sm text-slate-500 mb-1">Seats Requested</p>
               <p className="font-semibold mb-4">{passengers.length} x {cabinDetails.name}</p>
 
               <p className="text-sm text-slate-500 mb-2">Status</p>
               <div>
-                <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 inline-block px-2 py-0.5 rounded text-sm mb-2">
-                  Reservation Held — awaiting wire transfer
+                <p className={`font-semibold border inline-block px-2 py-0.5 rounded text-sm mb-2 ${bookingResponse.isWaitlist ? 'text-amber-700 bg-amber-100 border-amber-200' : 'text-[#0a192f] bg-blue-100 border-blue-200'}`}>
+                  {bookingResponse.isWaitlist ? 'Waitlist — awaiting wire transfer' : 'Reservation Held — awaiting wire transfer'}
                 </p>
                 <p className="text-xs text-slate-500 leading-tight">
-                  Wire must be received within 6 hours to guarantee seats.
+                  Wire must be received within 6 hours to guarantee your spot.
                 </p>
               </div>
             </div>
-
-            <p className="text-sm text-slate-500 mb-8 max-w-md mx-auto">
-              If you have any questions or need to make adjustments, please contact <strong>Help@IsraelRescues.com</strong>.
-            </p>
 
             <button onClick={() => { setView('landing'); window.scrollTo(0,0); }} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
               Return to Homepage
@@ -699,16 +656,11 @@ function LookupView({ setView, supabase }) {
     e.preventDefault();
     setIsSearching(true);
     setErrorMsg('');
-    
     try {
       const { data, error } = await supabase.rpc('lookup_reservation', { p_email: email, p_ref: ref });
-      
       if (error) throw error;
-      if (!data || data.length === 0) {
-        setErrorMsg('No booking found. Please check your email and reference code.');
-      } else {
-        setResult(data[0]);
-      }
+      if (!data || data.length === 0) setErrorMsg('No booking found. Please check your email and reference code.');
+      else setResult(data[0]);
     } catch (err) {
       setErrorMsg('An error occurred during lookup.');
     } finally {
@@ -718,14 +670,12 @@ function LookupView({ setView, supabase }) {
 
   return (
     <div className="max-w-md mx-auto px-4 py-16 animate-in fade-in">
-      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
-        &larr; Back Home
-      </button>
+      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">&larr; Back Home</button>
       <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
         <h2 className="text-2xl font-bold mb-2">Find Reservation</h2>
         <p className="text-sm text-slate-500 mb-6">Enter your details to check your booking status.</p>
         
-        {errorMsg && <p className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded">{errorMsg}</p>}
+        {errorMsg && <p className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded border border-red-100">{errorMsg}</p>}
 
         {!result ? (
           <form onSubmit={handleLookup} className="space-y-4">
@@ -743,9 +693,7 @@ function LookupView({ setView, supabase }) {
           </form>
         ) : (
           <div className="text-center">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle size={24} />
-            </div>
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={24} /></div>
             <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
             <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
               <p className="flex justify-between"><span className="text-slate-500">Class:</span> <strong>{result.cabin_class.toUpperCase()}</strong></p>
@@ -755,9 +703,7 @@ function LookupView({ setView, supabase }) {
                 <p className="font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-1 rounded inline-block text-xs uppercase tracking-wider">{result.payment_status.replace('_', ' ')}</p>
               </div>
             </div>
-            <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">
-              Look up another
-            </button>
+            <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">Look up another</button>
           </div>
         )}
       </div>
@@ -779,14 +725,12 @@ function AdminView({ setView, flightStatus }) {
       </div>
     );
   }
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 animate-in fade-in">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-[#0a192f]">Live Flight Overview</h1>
         <button onClick={() => setView('landing')} className="text-slate-500 hover:text-slate-900 font-medium">Exit</button>
       </div>
-      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Seats Reserved</p>
@@ -794,10 +738,12 @@ function AdminView({ setView, flightStatus }) {
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Remaining</p>
-          <p className="text-4xl font-extrabold text-blue-600">{flightStatus.seats_remaining}</p>
+          <p className={`text-4xl font-extrabold ${flightStatus.seats_remaining <= 0 ? 'text-red-500' : 'text-blue-600'}`}>
+            {flightStatus.seats_remaining}
+          </p>
+          {flightStatus.seats_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-1">Waitlist Active: {Math.abs(flightStatus.seats_remaining)} pax</p>}
         </div>
       </div>
-
       <div className="p-4 bg-slate-50 text-sm text-slate-600 border border-slate-200 rounded-xl">
         <p className="font-bold text-slate-800 mb-2">Operations Guide:</p>
         <p>1. To view individual bookings and confirm wires, log into your <strong>Supabase Dashboard</strong>.</p>
