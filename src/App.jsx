@@ -16,16 +16,16 @@ const FLIGHT_INFO = {
   routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
   routeSub: 'Direct Charter Flight',
   dateMain: 'March 18',
-  dateSub: '±1 day depending on airspace approval',
+  dateSub: 'Exact time confirmed 48-72 hours prior',
   operator: 'Operated by a licensed carrier arranged through Chapman Freeborn',
   aircraft: 'Airbus A340-300 (widebody) — 38 Business seats + 215 Economy seats',
   totalSeats: 253
 };
 
 const CABIN_CLASSES = {
-  economy: { id: 'economy', dbPrefix: 'eco', capacity: 136, name: 'Economy Class', price: 2150, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
-  premium: { id: 'premium', dbPrefix: 'prem', capacity: 79, name: 'Economy+', price: 2350, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
-  business: { id: 'business', dbPrefix: 'biz', capacity: 38, name: 'Business', price: 4000, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
+  economy: { id: 'economy', dbPrefix: 'eco', capacity: 136, name: 'Economy Class', price: 1950, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
+  premium: { id: 'premium', dbPrefix: 'prem', capacity: 79, name: 'Economy+', price: 2150, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
+  business: { id: 'business', dbPrefix: 'biz', capacity: 38, name: 'Business', price: 3750, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
 };
 
 const COUNTRY_CODES = [
@@ -160,17 +160,17 @@ function LandingView({ onSelectCabin, flightStatus }) {
   const isPartiallyFull = flightStatus.eco_remaining <= 0 || flightStatus.prem_remaining <= 0 || flightStatus.biz_remaining <= 0;
 
   const faqs = [
-    { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity (which it likely will), we will charter an additional flight for a departure date on or around March 18. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." },
-    { q: "When will the final flight details be confirmed?", a: "Final departure time and operational details will be confirmed once the aircraft positioning and regulatory clearances are finalized. Passengers will receive full flight information prior to departure." },
-    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens." },
-    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
+    { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
+    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled." },
+    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." },
+    { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity, we will endeavor to charter an additional flight. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." }
   ];
 
   return (
     <div className="animate-in fade-in duration-500 pb-16">
       <div className="relative bg-[#0a192f] text-white py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="[https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop]" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
+          <img src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/80 to-transparent"></div>
         </div>
         
@@ -187,7 +187,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-4xl">
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md">
-              <p className="text-slate-300 text-sm mb-1">Target Departure</p>
+              <p className="text-slate-300 text-sm mb-1">Departure</p>
               <p className="font-semibold text-lg">{FLIGHT_INFO.dateMain}</p>
               <p className="text-xs text-slate-400 mt-0.5">{FLIGHT_INFO.dateSub}</p>
             </div>
@@ -226,8 +226,8 @@ function LandingView({ onSelectCabin, flightStatus }) {
           <div className="flex gap-3 items-start">
             <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0"><ShieldCheck size={20} /></div>
             <div>
-              <h3 className="font-bold text-base mb-1 text-slate-900">100% Refundable</h3>
-              <p className="text-slate-600">All ticket purchases are fully refundable if the charter flight does not operate.</p>
+              <h3 className="font-bold text-base mb-1 text-slate-900">Refundable Cancellations</h3>
+              <p className="text-slate-600">All ticket purchases are refundable if the charter flight does not operate.</p>
             </div>
           </div>
           <div className="flex gap-3 items-start">
@@ -331,19 +331,20 @@ function LandingView({ onSelectCabin, flightStatus }) {
           <div className="bg-amber-50 p-8 rounded-xl border border-amber-200 text-amber-900 shadow-sm">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><AlertCircle size={24} className="text-amber-600"/> Important Info</h2>
             <div className="space-y-4 text-sm">
-              <p><strong>Waitlist Policy:</strong> If the primary flight is full, you are securing a spot on the waitlist. If sufficient waitlist demand is met, a second flight will be chartered. <strong>Wire transfers are required to hold a waitlist spot</strong> and are fully refundable if a second flight is not chartered.</p>
-              <p><strong>Check-in & Security:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure for check-in and security procedures.</p>
+              <p><strong>Waitlist Policy:</strong> If the primary flight is full, you are securing a spot on the waitlist. Wire transfers are required to hold a waitlist spot and are fully refundable if a flight is not chartered.</p>
+              <p><strong>Flight Confirmation & Security:</strong> Due to the regional security situation, exact departure date and time are subject to change. Final schedule details will be confirmed 48 to 72 hours prior to departure.</p>
+              <p><strong>Onward Travel:</strong> We strongly recommend waiting until final flight confirmation is received before booking onward flights from Frankfurt.</p>
+              <p><strong>Check-in:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure for check-in and security procedures.</p>
               <p><strong>Destination:</strong> This flight will land directly at Frankfurt Airport (FRA).</p>
-              <p><strong>Onward Travel:</strong> Passengers should <strong>not</strong> book onward travel until the charter flight is fully confirmed.</p>
-              <p><strong>Seating Arrangements:</strong> We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com.</p>
             </div>
           </div>
           
           <div className="bg-slate-100 p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
             <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><FileText size={24} className="text-slate-600"/> Legal Notice</h2>
             <div className="text-sm text-slate-600 space-y-4 leading-relaxed">
-              <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker.</p>
-              <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens.</p>
+              <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker. Rescue Charters LLC acts solely as an independent charter coordinator.</p>
+              <p><strong>Limitation of Liability:</strong> Rescue Charters LLC is not responsible or liable for any direct, indirect, incidental, or consequential damages, missed connections, delays, cancellations, or losses of any kind arising from or relating to the operation or non-operation of this flight.</p>
+              <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees. Once flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled.</p>
             </div>
           </div>
         </div>
@@ -656,7 +657,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  {isWaitlistSpot ? 'Wire transfer required to hold your position on the waitlist.' : 'To reserve a seat immediately, payment can currently be made via wire transfer.'}
+                  {isWaitlistSpot ? 'Wire transfer required to hold your position on the waitlist.' : 'To reserve your seat, payment must be made via wire transfer.'}
                 </p>
               </div>
             </div>
@@ -678,7 +679,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                 <div className="mt-6 border-t border-slate-200 pt-6">
                   <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm">
                     <p className="font-bold mb-1">Wire Transfer Selected</p>
-                    <p>Upon clicking "Complete", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your {isWaitlistSpot ? 'waitlist position' : 'seats'}.</p>
+                    <p>Upon clicking "Complete", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your {isWaitlistSpot ? 'waitlist position' : 'reservation'}.</p>
                   </div>
                 </div>
               )}
@@ -687,18 +688,19 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
             <div className="mb-8">
               <h3 className="font-bold mb-3 flex items-center gap-2"><FileText size={18}/> Terms & Conditions</h3>
               <div className="bg-slate-100 p-4 rounded-lg text-xs text-slate-700 space-y-2 h-32 overflow-y-auto border border-slate-200 mb-4">
-                <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 7 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%). Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled. You will be notified when this happens.</p>
+                <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees. Once the flight clearance is finalized, tickets become non-refundable except in the event the flight is cancelled.</p>
+                <p className="mt-2 font-bold text-slate-900">Limitation of Liability:</p>
+                <p>Rescue Charters LLC acts solely as an independent flight coordinator and intermediary. Rescue Charters LLC is not responsible or liable for any delays, cancellations, missed connections, or any direct, indirect, incidental, or consequential damages resulting from the operation or non-operation of this flight.</p>
                 <p className="mt-2">By purchasing a ticket you acknowledge that:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>This is a privately organized charter flight.</li>
-                  <li>The flight will operate once the aircraft is secured and approvals are received.</li>
-                  <li>The destination airport may change based on operational considerations.</li>
-                  <li>Passengers are responsible for any onward travel arrangements.</li>
+                  <li>Due to regional security, exact departure dates and times are subject to change and will be finalized 48-72 hours prior.</li>
+                  <li>Passengers are responsible for all onward travel arrangements.</li>
                 </ul>
               </div>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
-                <span className="text-sm font-medium text-slate-800">I agree to the Terms & Conditions.</span>
+                <span className="text-sm font-medium text-slate-800">I agree to the Terms & Conditions and Liability Waiver.</span>
               </label>
             </div>
 
@@ -912,7 +914,7 @@ function Footer({ setView }) {
           <div className="text-center md:text-left">
             <p className="text-white font-bold mb-1">Rescue Charters LLC</p>
             <p className="text-sm text-slate-500 mb-1">Operating as Israel Rescues.</p>
-            <p className="text-xs text-slate-600">This is a privately organized charter flight arranged through a licensed aircraft charter broker.</p>
+            <p className="text-xs text-slate-600">This is a privately organized charter flight. Rescue Charters LLC is not liable for indirect damages or delays.</p>
           </div>
           <div className="text-center md:text-right text-sm">
             <p className="mb-1">Contact: <a href="mailto:Help@IsraelRescues.com" className="text-blue-400 hover:underline">Help@IsraelRescues.com</a></p>
