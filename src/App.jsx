@@ -665,7 +665,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
 
             <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm mb-6">
               <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Payment Update</p>
-              <p>Because this is a rapid-response emergency charter organized in a matter of days, our credit card processing gateway is currently undergoing its standard bank approval. We expect it to be live very soon, but because the flight is filling up now, we opened wire transfers so people don't lose their seats while we wait for the bank.</p>
+              <p>Because this is a rapid-response emergency charter, our credit card processing gateway is currently undergoing standard bank approval. <strong>You can complete your reservation below now, and we will notify you the moment credit card processing goes live.</strong> However, please note that seats are filling up quickly and can only be immediately secured in the meantime with a wire transfer.</p>
             </div>
 
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
@@ -708,7 +708,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                 <div className="mt-6 border-t border-slate-200 pt-6">
                   <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm">
                     <p className="font-bold mb-1">Wire Transfer Selected</p>
-                    <p>Upon clicking "Complete", we will instantly email wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your {isWaitlistSpot ? 'waitlist position' : 'reservation'}.</p>
+                    <p>Upon clicking "Complete", we will instantly email your reservation receipt and wire instructions to <strong>{passengers[0].email}</strong>.</p>
                   </div>
                 </div>
               )}
@@ -754,7 +754,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
             
             <h2 className="text-3xl font-extrabold mb-2">{bookingResponse.isWaitlist ? 'Waitlist Spot Held' : 'Reservation Held'}</h2>
             <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-              <strong>Wire instructions have been emailed to {passengers[0].email}.</strong> Please complete the transfer within 6 hours.
+              <strong>Your reservation details and wire instructions have been emailed to {passengers[0].email}.</strong><br/><br/>
+              If you are waiting to pay via credit card, we will notify you as soon as the gateway is live. To guarantee your seats immediately, please complete the wire transfer.
             </p>
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 max-w-sm mx-auto mb-8 text-left">
@@ -770,10 +771,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <p className="text-sm text-slate-500 mb-2">Status</p>
               <div>
                 <p className={`font-semibold border inline-block px-2 py-0.5 rounded text-sm mb-2 ${bookingResponse.isWaitlist ? 'text-amber-700 bg-amber-100 border-amber-200' : 'text-[#0a192f] bg-blue-100 border-blue-200'}`}>
-                  {bookingResponse.isWaitlist ? 'Waitlist — awaiting wire transfer' : 'Reservation Held — awaiting wire transfer'}
-                </p>
-                <p className="text-xs text-slate-500 leading-tight">
-                  Wire must be received within 6 hours to guarantee your spot.
+                  {bookingResponse.isWaitlist ? 'Waitlist — awaiting payment' : 'Reservation Held — awaiting payment'}
                 </p>
               </div>
             </div>
