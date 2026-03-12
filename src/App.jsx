@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react';
+import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search, Info } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { Analytics } from '@vercel/analytics/react';
 
@@ -163,7 +163,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
 
   const faqs = [
     { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
-    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees charged by the provider (typically ~3%)." },
+    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees." },
     { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." },
     { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity, we will endeavor to charter an additional flight. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." }
   ];
@@ -322,7 +322,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
             <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
               <div className="bg-blue-50 p-3 rounded-full mb-4"><ShieldCheck size={24} className="text-blue-600" /></div>
               <h4 className="font-bold text-slate-900 mb-2">Widebody aircraft comfort</h4>
-              <p className="text-sm text-slate-600">Operated on a widebody {FLIGHT_INFO.aircraft}.</p>
+              <p className="text-sm text-slate-600">Operated on an {FLIGHT_INFO.aircraft}.</p>
             </div>
           </div>
           <p className="text-center text-sm mt-6 text-slate-500 italic px-4 max-w-3xl mx-auto">
@@ -393,11 +393,16 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
   const [checkoutError, setCheckoutError] = useState(''); 
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
-  const subtotal = cabinDetails.price * passengers.length;
+  
+  // Calculate specific seats vs lap infants
+  const seatCount = passengers.filter(p => p.passengerType !== 'Infant').length;
+  const infantCount = passengers.filter(p => p.passengerType === 'Infant').length;
+  
+  const subtotal = (cabinDetails.price * seatCount) + (200 * infantCount);
   const totalAmount = subtotal;
 
   const remainingInClass = flightStatus[`${cabinDetails.dbPrefix}_remaining`];
-  const isWaitlistSpot = remainingInClass < passengers.length;
+  const isWaitlistSpot = remainingInClass < seatCount;
 
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
@@ -449,6 +454,10 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
 
   const handleContinueToPayment = () => {
     setCheckoutError('');
+    if (seatCount === 0) {
+      setCheckoutError("A reservation must include at least one Adult or Child occupying a seat.");
+      return;
+    }
     if (validateStep1()) {
       setStep(2);
       window.scrollTo(0,0);
@@ -506,7 +515,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
         <div className="flex justify-between items-end border-b border-slate-200 pb-4">
           <div>
             <h1 className="text-3xl font-bold">Secure Checkout</h1>
-            <p className="text-slate-600 mt-1">Class: <strong>{cabinDetails.name}</strong> (${cabinDetails.price.toLocaleString()}/seat)</p>
+            <p className="text-slate-600 mt-1">Class: <strong>{cabinDetails.name}</strong></p>
           </div>
           <div className="text-right hidden sm:block">
             <div className="text-sm text-slate-500">Total</div>
@@ -548,9 +557,9 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Passenger Type *</label>
                       <select value={p.passengerType} name={`passengerType_${index}`} onChange={(e) => handlePassChange(index, 'passengerType', e.target.value)} className={`${inputClass(index, 'passengerType')} bg-white`} required>
-                        <option value="Adult">Adult</option>
-                        <option value="Child">Child (2 - 11 years)</option>
-                        <option value="Infant">Infant (Under 2 years)</option>
+                        <option value="Adult">Adult (${cabinDetails.price.toLocaleString()})</option>
+                        <option value="Child">Child 2-11 (${cabinDetails.price.toLocaleString()})</option>
+                        <option value="Infant">Infant Under 2 on Lap ($200)</option>
                       </select>
                     </div>
                     <div>
@@ -648,13 +657,18 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               </div>
             )}
 
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm mb-6">
+              <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Payment Update</p>
+              <p>Because this is a rapid-response emergency charter organized in a matter of days, our credit card processing gateway is currently undergoing its standard bank approval. We expect it to be live very soon, but because the flight is filling up now, we opened wire transfers so people don't lose their seats while we wait for the bank.</p>
+            </div>
+
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
               <div className="border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all border-slate-200 opacity-60 bg-slate-50 cursor-not-allowed">
                 <CreditCard size={32} className="mb-2 text-slate-400" />
                 <h3 className="font-bold">Credit Card</h3>
-                <p className="text-xs text-slate-500 mt-1">Credit card payments will be available shortly.</p>
+                <p className="text-xs text-slate-500 mt-1">Pending final bank approval.</p>
               </div>
               <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
@@ -669,9 +683,15 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <h3 className="font-bold text-lg border-b border-slate-200 pb-2 mb-4">Order Summary</h3>
               <div className="space-y-2 text-sm text-slate-700 mb-4">
                 <div className="flex justify-between">
-                  <span>{cabinDetails.name} {isWaitlistSpot ? 'Waitlist Spot' : 'Seat'} x {passengers.length}</span>
-                  <span>${subtotal.toLocaleString()}</span>
+                  <span>{cabinDetails.name} {isWaitlistSpot ? 'Waitlist Spot' : 'Seat'} x {seatCount}</span>
+                  <span>${(cabinDetails.price * seatCount).toLocaleString()}</span>
                 </div>
+                {infantCount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Lap Infant x {infantCount}</span>
+                    <span>${(200 * infantCount).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
               <div className="flex justify-between text-xl font-extrabold border-t border-slate-200 pt-4">
                 <span>Total Due</span>
@@ -735,8 +755,11 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <p className="text-sm text-slate-500 mb-1">Booking Reference</p>
               <p className="text-2xl font-mono font-bold mb-4 tracking-wider text-[#0a192f]">{bookingResponse.ref}</p>
               
-              <p className="text-sm text-slate-500 mb-1">{bookingResponse.isWaitlist ? 'Waitlist Spots' : 'Seats Requested'}</p>
-              <p className="font-semibold mb-4">{passengers.length} x {cabinDetails.name}</p>
+              <p className="text-sm text-slate-500 mb-1">{bookingResponse.isWaitlist ? 'Waitlist Spots' : 'Reservation'}</p>
+              <p className="font-semibold mb-4">
+                {seatCount} x {cabinDetails.name}
+                {infantCount > 0 && <span className="block text-slate-600 font-normal">+ {infantCount} Lap Infant{infantCount > 1 ? 's' : ''}</span>}
+              </p>
 
               <p className="text-sm text-slate-500 mb-2">Status</p>
               <div>
@@ -811,7 +834,7 @@ function LookupView({ setView, supabase }) {
             <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
             <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
               <p className="flex justify-between"><span className="text-slate-500">Class:</span> <strong>{result.cabin_class.toUpperCase()}</strong></p>
-              <p className="flex justify-between"><span className="text-slate-500">Passengers:</span> <strong>{result.passenger_count}</strong></p>
+              <p className="flex justify-between"><span className="text-slate-500">Total Passengers:</span> <strong>{result.passenger_count}</strong></p>
               <div className="pt-2 mt-2 border-t border-slate-200">
                 <p className="text-slate-500 mb-1">Status:</p>
                 <p className={`font-semibold px-2 py-1 rounded inline-block text-xs uppercase tracking-wider ${result.payment_status === 'waitlist' ? 'text-amber-700 bg-amber-100 border border-amber-200' : 'text-blue-700 bg-blue-100 border border-blue-200'}`}>
