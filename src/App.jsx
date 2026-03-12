@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 // --- SUPABASE INITIALIZATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || '0000'; // Falls back to 0000 only if env is missing
+const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || '0000'; 
 
 const supabase = (supabaseUrl && supabaseAnonKey) 
   ? createClient(supabaseUrl, supabaseAnonKey) 
@@ -23,9 +23,9 @@ const FLIGHT_INFO = {
 };
 
 const CABIN_CLASSES = {
-  economy: { id: 'economy', name: 'Economy Class', price: 2150, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
-  premium: { id: 'premium', name: 'Economy+', price: 2350, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
-  business: { id: 'business', name: 'Business', price: 4000, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
+  economy: { id: 'economy', dbPrefix: 'eco', capacity: 136, name: 'Economy Class', price: 2150, features: ['Standard seating', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-slate-600' },
+  premium: { id: 'premium', dbPrefix: 'prem', capacity: 79, name: 'Economy+', price: 2350, features: ['Front section seating & priority boarding', '1x20kg checked bag + carry-on', 'Hot kosher meals included'], color: 'bg-indigo-600' },
+  business: { id: 'business', dbPrefix: 'biz', capacity: 38, name: 'Business', price: 4000, features: ['150-160° angled recline seats', 'Very spacious & comfortable', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], color: 'bg-blue-900' }
 };
 
 const COUNTRY_CODES = [
@@ -33,7 +33,6 @@ const COUNTRY_CODES = [
   { code: '+33', label: 'FR (+33)' }, { code: '+49', label: 'DE (+49)' }, { code: '+61', label: 'AU (+61)' }, { code: '+00', label: 'Other' }
 ];
 
-// UTILITY: Phone Formatter
 const formatPhoneNumber = (value) => {
   if (!value) return value;
   const phoneNumber = value.replace(/[^\d]/g, '');
@@ -49,7 +48,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
   
-  // --- HASH ROUTING LOGIC ---
   const [view, setViewState] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     return ['landing', 'booking', 'lookup', 'admin'].includes(hash) ? hash : 'landing';
@@ -60,25 +58,21 @@ export default function App() {
       const hash = window.location.hash.replace('#', '');
       const validView = ['landing', 'booking', 'lookup', 'admin'].includes(hash) ? hash : 'landing';
       setViewState(validView);
-      window.scrollTo(0, 0); // Ensure page starts at the top when navigating
+      window.scrollTo(0, 0); 
     };
-    
-    // Listen to browser Back/Forward arrows
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // Update hash instead of raw state so URLs become shareable (e.g., [site.com/#lookup](https://site.com/#lookup))
-  const setView = (newView) => {
-    window.location.hash = newView;
-  };
-  // --------------------------
+  const setView = (newView) => { window.location.hash = newView; };
 
   const [selectedCabin, setSelectedCabin] = useState('economy');
-  const [flightStatus, setFlightStatus] = useState({ seats_reserved: 0, seats_remaining: 253 });
+  const [flightStatus, setFlightStatus] = useState({ 
+    eco_remaining: 136, prem_remaining: 79, biz_remaining: 38,
+    eco_reserved: 0, prem_reserved: 0, biz_reserved: 0 
+  });
   const [loadingData, setLoadingData] = useState(true);
 
-  // Supabase Auth Setup
   useEffect(() => {
     if (!supabase) {
       setAuthInitialized(true);
@@ -87,17 +81,14 @@ export default function App() {
     }
     const initAuth = async () => {
       const { data, error } = await supabase.auth.signInAnonymously();
-      // Safely access data.user as recommended
       if (!error) setUser(data?.user ?? data);
       setAuthInitialized(true);
     };
     initAuth();
   }, []);
 
-  // Supabase Data Fetching
   useEffect(() => {
     if (!supabase || !user) return;
-    
     let channel;
     const fetchInitialCount = async () => {
       const { data, error } = await supabase.from('flight_status').select('*').eq('id', 1).single();
@@ -112,18 +103,13 @@ export default function App() {
       })
       .subscribe();
 
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-    };
+    return () => { if (channel) supabase.removeChannel(channel); };
   }, [user]);
 
   const handleSelectCabin = (cabinId) => {
     setSelectedCabin(cabinId);
     setView('booking');
   };
-
-  const showPublicCount = flightStatus.seats_reserved >= 30;
-  const isWaitlistActive = flightStatus.seats_remaining <= 0;
 
   if (!authInitialized || loadingData) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>;
   if (!supabase) return <div className="min-h-screen flex items-center justify-center">Missing Supabase config.</div>;
@@ -132,8 +118,8 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 flex flex-col">
       <Navbar setView={setView} />
       <main className="flex-grow">
-        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} seatsRemaining={flightStatus.seats_remaining} showPublicCount={showPublicCount} isWaitlistActive={isWaitlistActive} />}
-        {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} seatsRemaining={flightStatus.seats_remaining} />}
+        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} flightStatus={flightStatus} />}
+        {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} flightStatus={flightStatus} />}
         {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
         {view === 'admin' && <AdminView setView={setView} flightStatus={flightStatus} />}
       </main>
@@ -165,9 +151,13 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlistActive }) {
+function LandingView({ onSelectCabin, flightStatus }) {
   const [openFaq, setOpenFaq] = useState(null);
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
+
+  const totalRemaining = flightStatus.eco_remaining + flightStatus.prem_remaining + flightStatus.biz_remaining;
+  const isCompletelyFull = totalRemaining <= 0;
+  const isPartiallyFull = flightStatus.eco_remaining <= 0 || flightStatus.prem_remaining <= 0 || flightStatus.biz_remaining <= 0;
 
   const faqs = [
     { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity (which it likely will), we will charter an additional flight for a departure date on or around March 18. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." },
@@ -209,23 +199,27 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlis
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
-              {isWaitlistActive ? (
-                <p className="font-bold text-xl text-amber-400">Waitlist Open</p>
-              ) : showPublicCount ? (
-                <p className="font-bold text-xl text-blue-300">{seatsRemaining} Seats Remaining</p>
+              {totalRemaining <= 0 ? (
+                <p className="font-bold text-xl text-amber-400">Waitlist Only</p>
+              ) : totalRemaining <= 63 ? (
+                <p className="font-bold text-base text-red-400 mt-1 uppercase tracking-wider">Critical: Very Limited Seats</p>
               ) : (
-                <p className="font-bold text-base text-blue-300 mt-1">Limited seats available — reserve now</p>
+                <p className="font-bold text-base text-blue-300 mt-1 uppercase tracking-wider">Limited seats available</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {isWaitlistActive && (
+      {isCompletelyFull ? (
         <div className="bg-amber-100 border-b border-amber-200 text-amber-900 py-4 px-4 sm:px-8 text-center text-sm font-medium">
           The primary flight is currently full. We are accepting priority waitlist reservations. If the waitlist fills, we will charter an additional flight.
         </div>
-      )}
+      ) : isPartiallyFull ? (
+        <div className="bg-amber-100 border-b border-amber-200 text-amber-900 py-4 px-4 sm:px-8 text-center text-sm font-medium">
+          One or more cabin classes are currently full. Priority waitlist reservations are now open for those classes.
+        </div>
+      ) : null}
 
       <div className="bg-white py-8 border-b border-slate-200 shadow-sm relative z-20 mx-4 sm:mx-8 lg:mx-auto max-w-7xl rounded-b-xl px-4 sm:px-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
@@ -254,37 +248,54 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlis
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold mb-8 text-center">{isWaitlistActive ? 'Join the Waitlist' : 'Select Your Class'}</h2>
+        <h2 className="text-3xl font-bold mb-8 text-center">Select Your Class</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          {Object.values(CABIN_CLASSES).map((cabin) => (
-            <div key={cabin.id} className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden flex flex-col ${cabin.id === 'business' ? 'border-blue-900 shadow-lg' : 'border-slate-200'}`}>
-              <div className={`${cabin.color} text-white px-6 py-4 flex justify-between items-center`}>
-                <h3 className="text-xl font-bold">{cabin.name}</h3>
-                <div className="text-right">
-                  <span className="text-2xl font-extrabold">${cabin.price.toLocaleString()}</span>
-                  <span className="text-sm opacity-80 block">/ seat</span>
+          {Object.values(CABIN_CLASSES).map((cabin) => {
+            const remaining = flightStatus[`${cabin.dbPrefix}_remaining`];
+            const isWaitlist = remaining <= 0;
+            const showCount = remaining > 0 && remaining <= (cabin.capacity * 0.5);
+
+            return (
+              <div key={cabin.id} className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden flex flex-col ${cabin.id === 'business' ? 'border-blue-900 shadow-lg' : 'border-slate-200'}`}>
+                <div className={`${cabin.color} text-white px-6 py-4 flex justify-between items-center relative`}>
+                  <h3 className="text-xl font-bold">{cabin.name}</h3>
+                  <div className="text-right">
+                    <span className="text-2xl font-extrabold">${cabin.price.toLocaleString()}</span>
+                    <span className="text-sm opacity-80 block">/ seat</span>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 border-b border-slate-200 py-2 px-6 flex justify-center min-h-[40px] items-center">
+                  {isWaitlist ? (
+                    <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><AlertCircle size={14}/> Waitlist Open</span>
+                  ) : showCount ? (
+                    <span className="bg-red-100 text-red-700 border border-red-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><Clock size={14}/> {remaining} Seats Left</span>
+                  ) : (
+                    <span className="text-slate-400 text-xs uppercase tracking-wider font-semibold">Available</span>
+                  )}
+                </div>
+
+                <div className="p-6 flex-grow">
+                  <ul className="space-y-3 mb-8">
+                    {cabin.features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2 text-slate-700 text-sm">
+                        <CheckCircle size={16} className={`${cabin.id === 'business' ? 'text-blue-600' : 'text-slate-400'} shrink-0`} /> {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="p-6 pt-0 mt-auto">
+                  <button 
+                    onClick={() => onSelectCabin(cabin.id)}
+                    className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
+                      ${isWaitlist ? 'bg-amber-600 text-white hover:bg-amber-700' : cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                  >
+                    {isWaitlist ? `Join Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
+                  </button>
                 </div>
               </div>
-              <div className="p-6 flex-grow">
-                <ul className="space-y-3 mb-8">
-                  {cabin.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-2 text-slate-700">
-                      <CheckCircle size={18} className={`${cabin.id === 'business' ? 'text-blue-600' : 'text-slate-400'}`} /> {feature}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="p-6 pt-0 mt-auto">
-                <button 
-                  onClick={() => onSelectCabin(cabin.id)}
-                  className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
-                    ${cabin.id === 'business' ? 'bg-blue-900 text-white hover:bg-blue-800' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
-                >
-                  {isWaitlistActive ? `Join ${cabin.name} Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mb-16">
@@ -360,13 +371,14 @@ function LandingView({ onSelectCabin, seatsRemaining, showPublicCount, isWaitlis
   );
 }
 
-function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining }) {
+function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState([{ 
     firstName: '', middleName: '', lastName: '', 
     email: '', phoneCode: '+1', phone: '', 
     emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
-    passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' 
+    passport: '', passportIssue: '', passportExpiry: '', passportIssueCountry: '', 
+    dob: '', nationality: '', gender: '', passengerType: 'Adult'
   }]);
   
   const [paymentMethod, setPaymentMethod] = useState('wire');
@@ -380,23 +392,28 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
   const subtotal = cabinDetails.price * passengers.length;
   const totalAmount = subtotal;
 
-  const isWaitlistSpot = seatsRemaining < passengers.length;
+  const remainingInClass = flightStatus[`${cabinDetails.dbPrefix}_remaining`];
+  const isWaitlistSpot = remainingInClass < passengers.length;
 
   const handlePassChange = (index, field, value) => {
     const newPass = [...passengers];
-    
-    // Auto-format phones
     if (field === 'phone' || field === 'emergencyPhone') {
       value = formatPhoneNumber(value);
     }
-    
     newPass[index][field] = value;
     setPassengers(newPass);
     setFormErrors(formErrors.filter(e => !(e.index === index && e.field === field)));
     setCheckoutError('');
   };
 
-  const addPassenger = () => setPassengers([...passengers, { firstName: '', middleName: '', lastName: '', email: '', phoneCode: '+1', phone: '', emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', passport: '', passportExpiry: '', dob: '', nationality: '', gender: '' }]);
+  const addPassenger = () => setPassengers([...passengers, { 
+    firstName: '', middleName: '', lastName: '', 
+    email: '', phoneCode: '+1', phone: '', 
+    emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
+    passport: '', passportIssue: '', passportExpiry: '', passportIssueCountry: '', 
+    dob: '', nationality: '', gender: '', passengerType: 'Adult' 
+  }]);
+  
   const removePassenger = (index) => {
     if (passengers.length > 1) {
       setPassengers(passengers.filter((_, i) => i !== index));
@@ -414,10 +431,13 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
       if (!p.emergencyName.trim()) errors.push({ index: i, field: 'emergencyName', msg: 'Required' });
       if (p.emergencyPhone.replace(/\D/g, '').length < 10) errors.push({ index: i, field: 'emergencyPhone', msg: 'Required' });
       if (!p.passport.trim()) errors.push({ index: i, field: 'passport', msg: 'Required' });
+      if (!p.passportIssue) errors.push({ index: i, field: 'passportIssue', msg: 'Required' });
       if (!p.passportExpiry) errors.push({ index: i, field: 'passportExpiry', msg: 'Required' });
+      if (!p.passportIssueCountry.trim()) errors.push({ index: i, field: 'passportIssueCountry', msg: 'Required' });
       if (!p.dob) errors.push({ index: i, field: 'dob', msg: 'Required' });
       if (!p.nationality.trim()) errors.push({ index: i, field: 'nationality', msg: 'Required' });
       if (!p.gender) errors.push({ index: i, field: 'gender', msg: 'Required' });
+      if (!p.passengerType) errors.push({ index: i, field: 'passengerType', msg: 'Required' });
     });
     setFormErrors(errors);
     return errors.length === 0;
@@ -520,6 +540,27 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
                       <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1">Last Name (Exactly as on passport) *</label>
                       <input type="text" value={p.lastName} name={`lastName_${index}`} autoComplete="family-name" onChange={(e) => handlePassChange(index, 'lastName', e.target.value)} className={inputClass(index, 'lastName')} required/>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Passenger Type *</label>
+                      <select value={p.passengerType} name={`passengerType_${index}`} onChange={(e) => handlePassChange(index, 'passengerType', e.target.value)} className={`${inputClass(index, 'passengerType')} bg-white`} required>
+                        <option value="Adult">Adult</option>
+                        <option value="Child">Child (2 - 11 years)</option>
+                        <option value="Infant">Infant (Under 2 years)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Gender *</label>
+                      <select value={p.gender} name={`gender_${index}`} autoComplete="sex" onChange={(e) => handlePassChange(index, 'gender', e.target.value)} className={`${inputClass(index, 'gender')} bg-white`} required>
+                        <option value="">Select</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Date of Birth *</label>
+                      <input type="date" value={p.dob} name={`dob_${index}`} autoComplete="bday" onChange={(e) => handlePassChange(index, 'dob', e.target.value)} className={inputClass(index, 'dob')} required/>
+                    </div>
                     
                     <div className="md:col-span-1">
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Email Address *</label>
@@ -535,30 +576,30 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
                       </div>
                     </div>
                     
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Passport Number *</label>
-                      <input type="text" value={p.passport} name={`passport_${index}`} onChange={(e) => handlePassChange(index, 'passport', e.target.value)} className={inputClass(index, 'passport')} required/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Passport Expiration *</label>
-                      <input type="date" value={p.passportExpiry} name={`passportExpiry_${index}`} onChange={(e) => handlePassChange(index, 'passportExpiry', e.target.value)} className={inputClass(index, 'passportExpiry')} required/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Date of Birth *</label>
-                      <input type="date" value={p.dob} name={`dob_${index}`} autoComplete="bday" onChange={(e) => handlePassChange(index, 'dob', e.target.value)} className={inputClass(index, 'dob')} required/>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Nationality *</label>
-                      <input type="text" value={p.nationality} name={`nationality_${index}`} autoComplete="country-name" onChange={(e) => handlePassChange(index, 'nationality', e.target.value)} className={inputClass(index, 'nationality')} placeholder="e.g. USA" required/>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Gender *</label>
-                      <select value={p.gender} name={`gender_${index}`} autoComplete="sex" onChange={(e) => handlePassChange(index, 'gender', e.target.value)} className={`${inputClass(index, 'gender')} bg-white`} required>
-                        <option value="">Select</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                      </select>
+                    <div className="md:col-span-3 mt-4 border-t border-slate-200 pt-4">
+                      <h4 className="text-sm font-bold text-slate-800 mb-3">Passport Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Passport Number *</label>
+                          <input type="text" value={p.passport} name={`passport_${index}`} onChange={(e) => handlePassChange(index, 'passport', e.target.value)} className={inputClass(index, 'passport')} required/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Nationality *</label>
+                          <input type="text" value={p.nationality} name={`nationality_${index}`} autoComplete="country-name" onChange={(e) => handlePassChange(index, 'nationality', e.target.value)} className={inputClass(index, 'nationality')} placeholder="e.g. USA" required/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Country of Issue *</label>
+                          <input type="text" value={p.passportIssueCountry} name={`passportIssueCountry_${index}`} onChange={(e) => handlePassChange(index, 'passportIssueCountry', e.target.value)} className={inputClass(index, 'passportIssueCountry')} placeholder="e.g. USA" required/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Date of Issue *</label>
+                          <input type="date" value={p.passportIssue} name={`passportIssue_${index}`} onChange={(e) => handlePassChange(index, 'passportIssue', e.target.value)} className={inputClass(index, 'passportIssue')} required/>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Date of Expiration *</label>
+                          <input type="date" value={p.passportExpiry} name={`passportExpiry_${index}`} onChange={(e) => handlePassChange(index, 'passportExpiry', e.target.value)} className={inputClass(index, 'passportExpiry')} required/>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="md:col-span-3 mt-4 border-t border-slate-200 pt-4">
@@ -599,7 +640,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, seatsRemaining })
             {isWaitlistSpot && (
               <div className="bg-amber-100 border-l-4 border-amber-500 p-4 mb-8 text-amber-900 rounded-r shadow-sm">
                 <p className="font-bold flex items-center gap-2 mb-1"><AlertCircle size={18}/> Notice: This is a Waitlist Spot</p>
-                <p className="text-sm">The primary flight is currently full. By proceeding, you are joining the priority waitlist. If the waitlist fills, we will charter an additional flight. You must complete the wire transfer to secure your spot.</p>
+                <p className="text-sm">The specific cabin class you requested is currently full. By proceeding, you are joining the priority waitlist. If the waitlist fills, we will charter an additional flight. You must complete the wire transfer to secure your spot.</p>
               </div>
             )}
 
@@ -785,6 +826,8 @@ function AdminView({ setView, flightStatus }) {
   const [auth, setAuth] = useState(false);
   const [pin, setPin] = useState('');
 
+  const totalReserved = flightStatus.eco_reserved + flightStatus.prem_reserved + flightStatus.biz_reserved;
+
   if (!auth) {
     return (
       <div className="max-w-sm mx-auto px-4 py-24 text-center">
@@ -804,26 +847,58 @@ function AdminView({ setView, flightStatus }) {
         <h1 className="text-3xl font-bold text-[#0a192f]">Live Flight Overview</h1>
         <button onClick={() => setView('landing')} className="text-slate-500 hover:text-slate-900 font-medium">Exit</button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Seats Reserved</p>
-          <p className="text-4xl font-extrabold text-[#0a192f]">
-            {flightStatus.seats_reserved > 253 ? 253 : flightStatus.seats_reserved}
-          </p>
+      
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8 text-center">
+        <p className="text-slate-500 text-sm font-bold uppercase mb-1">Total Seats Reserved (All Classes)</p>
+        <p className="text-5xl font-extrabold text-[#0a192f]">{totalReserved} <span className="text-xl text-slate-400 font-medium">/ 253</span></p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+          <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">Economy</h3>
+          <div className="flex justify-between mb-2">
+            <span className="text-slate-500">Reserved</span>
+            <span className="font-bold">{flightStatus.eco_reserved}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-500">Remaining</span>
+            <span className={`font-bold ${flightStatus.eco_remaining <= 0 ? 'text-red-500' : 'text-blue-600'}`}>{flightStatus.eco_remaining <= 0 ? 0 : flightStatus.eco_remaining}</span>
+          </div>
+          {flightStatus.eco_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-3 text-right">Waitlist: {Math.abs(flightStatus.eco_remaining)} pax</p>}
         </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <p className="text-slate-500 text-sm font-bold uppercase mb-1">Seats Remaining</p>
-          <p className={`text-4xl font-extrabold ${flightStatus.seats_remaining <= 0 ? 'text-red-500' : 'text-blue-600'}`}>
-            {flightStatus.seats_remaining <= 0 ? 0 : flightStatus.seats_remaining}
-          </p>
-          {flightStatus.seats_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-1">Waitlist Active: {Math.abs(flightStatus.seats_remaining)} pax</p>}
+
+        <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+          <h3 className="font-bold text-indigo-900 border-b border-indigo-200 pb-2 mb-4">Economy+</h3>
+          <div className="flex justify-between mb-2">
+            <span className="text-indigo-700">Reserved</span>
+            <span className="font-bold text-indigo-900">{flightStatus.prem_reserved}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-indigo-700">Remaining</span>
+            <span className={`font-bold ${flightStatus.prem_remaining <= 0 ? 'text-red-500' : 'text-indigo-900'}`}>{flightStatus.prem_remaining <= 0 ? 0 : flightStatus.prem_remaining}</span>
+          </div>
+          {flightStatus.prem_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-3 text-right">Waitlist: {Math.abs(flightStatus.prem_remaining)} pax</p>}
+        </div>
+
+        <div className="bg-blue-50 p-6 rounded-xl border border-blue-100">
+          <h3 className="font-bold text-blue-900 border-b border-blue-200 pb-2 mb-4">Business</h3>
+          <div className="flex justify-between mb-2">
+            <span className="text-blue-700">Reserved</span>
+            <span className="font-bold text-blue-900">{flightStatus.biz_reserved}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-blue-700">Remaining</span>
+            <span className={`font-bold ${flightStatus.biz_remaining <= 0 ? 'text-red-500' : 'text-blue-900'}`}>{flightStatus.biz_remaining <= 0 ? 0 : flightStatus.biz_remaining}</span>
+          </div>
+          {flightStatus.biz_remaining < 0 && <p className="text-xs text-amber-600 font-bold mt-3 text-right">Waitlist: {Math.abs(flightStatus.biz_remaining)} pax</p>}
         </div>
       </div>
+
       <div className="p-4 bg-slate-50 text-sm text-slate-600 border border-slate-200 rounded-xl">
         <p className="font-bold text-slate-800 mb-2">Operations Guide:</p>
         <p>1. To view individual bookings and confirm wires, log into your <strong>Supabase Dashboard</strong>.</p>
         <p>2. Open the <code>bookings</code> table to manage statuses.</p>
-        <p>3. Open the <code>passengers</code> table to export your CSV manifest for Chapman Freeborn.</p>
+        <p>3. To export the flight manifest for the airline, go to <strong>Table Editor</strong> -> <strong>confirmed_manifest</strong> view and click Export CSV.</p>
       </div>
     </div>
   );
@@ -852,3 +927,4 @@ function Footer({ setView }) {
     </footer>
   );
 }
+```
