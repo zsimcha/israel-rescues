@@ -665,22 +665,22 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
 
             <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm mb-6">
               <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Payment Update</p>
-              <p>Because this is a rapid-response emergency charter, our credit card processing gateway is currently undergoing standard bank approval. <strong>You can complete your reservation below now, and we will notify you the moment credit card processing goes live.</strong> However, please note that seats are filling up quickly and can only be immediately secured in the meantime with a wire transfer.</p>
+              <p>Because this is a rapid-response emergency charter organized in a matter of days, our credit card processing gateway is currently undergoing its standard bank approval. We expect it to be live very soon, but because the flight is filling up now, we opened wire transfers so people don't lose their seats while we wait for the bank.</p>
             </div>
 
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-              <div className="border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all border-slate-200 opacity-60 bg-slate-50 cursor-not-allowed">
-                <CreditCard size={32} className="mb-2 text-slate-400" />
-                <h3 className="font-bold">Credit Card</h3>
-                <p className="text-xs text-slate-500 mt-1">Pending final bank approval.</p>
+              <div onClick={() => setPaymentMethod('cc')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'cc' ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
+                <CreditCard size={32} className={`mb-2 ${paymentMethod === 'cc' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <h3 className="font-bold">Credit Card (Pending)</h3>
+                <p className="text-xs text-slate-500 mt-1">Reserve your spot now. We will notify you to complete payment when the CC gateway is live.</p>
               </div>
               <div onClick={() => setPaymentMethod('wire')} className={`cursor-pointer border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center transition-all ${paymentMethod === 'wire' ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-slate-200 hover:border-slate-300'}`}>
                 <Landmark size={32} className={`mb-2 ${paymentMethod === 'wire' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <h3 className="font-bold">Bank Wire</h3>
                 <p className="text-xs text-slate-500 mt-1">
-                  {isWaitlistSpot ? 'Wire transfer required to hold your position on the waitlist.' : 'To reserve your seat, payment must be made via wire transfer.'}
+                  {isWaitlistSpot ? 'Wire transfer required to hold your position on the waitlist.' : 'To guarantee your seat immediately, payment must be made via wire transfer.'}
                 </p>
               </div>
             </div>
@@ -704,14 +704,19 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                 <span>${totalAmount.toLocaleString()}</span>
               </div>
 
-              {paymentMethod === 'wire' && (
-                <div className="mt-6 border-t border-slate-200 pt-6">
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                {paymentMethod === 'wire' ? (
                   <div className="bg-blue-100 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm">
                     <p className="font-bold mb-1">Wire Transfer Selected</p>
-                    <p>Upon clicking "Complete", we will instantly email your reservation receipt and wire instructions to <strong>{passengers[0].email}</strong>.</p>
+                    <p>Upon clicking "Complete", we will instantly email your reservation receipt and wire instructions to <strong>{passengers[0].email}</strong>. You must initiate the wire within <strong>6 hours</strong> to guarantee your {isWaitlistSpot ? 'waitlist position' : 'reservation'}.</p>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-amber-100 border border-amber-200 text-amber-900 p-4 rounded-lg text-sm shadow-sm">
+                    <p className="font-bold mb-1 flex items-center gap-1"><AlertCircle size={16}/> Credit Card Hold</p>
+                    <p>Upon clicking "Complete", we will hold your reservation and email you the moment our credit card processor is live. <strong>Note: Seats are filled on a first-to-pay basis.</strong> Your seat is not fully guaranteed until payment is complete.</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mb-8">
@@ -752,11 +757,19 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <CheckCircle size={40} />
             </div>
             
-            <h2 className="text-3xl font-extrabold mb-2">{bookingResponse.isWaitlist ? 'Waitlist Spot Held' : 'Reservation Held'}</h2>
-            <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
-              <strong>Your reservation details and wire instructions have been emailed to {passengers[0].email}.</strong><br/><br/>
-              If you are waiting to pay via credit card, we will notify you as soon as the gateway is live. To guarantee your seats immediately, please complete the wire transfer.
-            </p>
+            <h2 className="text-3xl font-extrabold mb-2">{bookingResponse.isWaitlist ? 'Waitlist Spot Held' : 'Reservation Submitted'}</h2>
+            
+            {paymentMethod === 'wire' ? (
+              <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
+                <strong>Your reservation details and wire instructions have been emailed to {passengers[0].email}.</strong><br/><br/>
+                Please complete the transfer within 6 hours to guarantee your seats.
+              </p>
+            ) : (
+              <p className="text-lg text-slate-600 mb-8 max-w-md mx-auto">
+                <strong>Your reservation details have been saved!</strong><br/><br/>
+                We will email {passengers[0].email} the moment our credit card processor is live. Please note that seats are filled on a first-to-pay basis.
+              </p>
+            )}
 
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 max-w-sm mx-auto mb-8 text-left">
               <p className="text-sm text-slate-500 mb-1">Booking Reference</p>
@@ -771,7 +784,10 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <p className="text-sm text-slate-500 mb-2">Status</p>
               <div>
                 <p className={`font-semibold border inline-block px-2 py-0.5 rounded text-sm mb-2 ${bookingResponse.isWaitlist ? 'text-amber-700 bg-amber-100 border-amber-200' : 'text-[#0a192f] bg-blue-100 border-blue-200'}`}>
-                  {bookingResponse.isWaitlist ? 'Waitlist — awaiting payment' : 'Reservation Held — awaiting payment'}
+                  {paymentMethod === 'wire' 
+                    ? (bookingResponse.isWaitlist ? 'Waitlist — awaiting payment' : 'Reservation Held — awaiting payment')
+                    : 'Awaiting Credit Card Gateway'
+                  }
                 </p>
               </div>
             </div>
