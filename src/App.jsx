@@ -389,7 +389,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
     email: '', phoneCode: '+1', phone: '', 
     emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
     passport: '', passportIssue: '', passportExpiry: '', passportIssueCountry: '', 
-    dob: '', nationality: '', gender: '', passengerType: 'Adult'
+    dob: '', nationality: '', gender: '', passengerType: 'Adult',
+    wheelchair: false, meal: 'Standard Kosher'
   }]);
   
   const [paymentMethod, setPaymentMethod] = useState('wire');
@@ -427,7 +428,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
     email: '', phoneCode: '+1', phone: '', 
     emergencyName: '', emergencyPhoneCode: '+1', emergencyPhone: '', 
     passport: '', passportIssue: '', passportExpiry: '', passportIssueCountry: '', 
-    dob: '', nationality: '', gender: '', passengerType: 'Adult' 
+    dob: '', nationality: '', gender: '', passengerType: 'Adult',
+    wheelchair: false, meal: 'Standard Kosher' 
   }]);
   
   const removePassenger = (index) => {
@@ -618,6 +620,29 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
                         <div>
                           <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Date of Expiration *</label>
                           <input type="date" value={p.passportExpiry} name={`passportExpiry_${index}`} onChange={(e) => handlePassChange(index, 'passportExpiry', e.target.value)} className={inputClass(index, 'passportExpiry')} required/>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-3 mt-4 border-t border-slate-200 pt-4">
+                      <h4 className="text-sm font-bold text-slate-800 mb-3">Special Requests</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Meal Preference</label>
+                          <select value={p.meal} name={`meal_${index}`} onChange={(e) => handlePassChange(index, 'meal', e.target.value)} className={`${inputClass(index, 'meal')} bg-white`}>
+                            <option value="Standard Kosher">Standard Kosher</option>
+                            <option value="Glatt Kosher / Mehadrin">Glatt Kosher / Mehadrin</option>
+                            <option value="Kosher Vegetarian">Kosher Vegetarian</option>
+                            <option value="Kosher Gluten-Free">Kosher Gluten-Free</option>
+                            <option value="Kosher Nut-Free">Kosher Nut-Free</option>
+                            <option value="Kosher Child Meal">Kosher Child Meal</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center h-full pt-4 md:pt-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={p.wheelchair} onChange={(e) => handlePassChange(index, 'wheelchair', e.target.checked)} className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" />
+                            <span className="text-sm font-medium text-slate-800">Require wheelchair assistance at airport</span>
+                          </label>
                         </div>
                       </div>
                     </div>
