@@ -927,4 +927,3 @@ function Footer({ setView }) {
     </footer>
   );
 }
-```
