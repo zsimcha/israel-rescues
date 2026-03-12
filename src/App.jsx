@@ -170,7 +170,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
     <div className="animate-in fade-in duration-500 pb-16">
       <div className="relative bg-[#0a192f] text-white py-16 sm:py-20 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="[https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop](https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop)" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
+          <img src="[https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop]" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
           <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/80 to-transparent"></div>
         </div>
         
