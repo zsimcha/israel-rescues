@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plane, ShieldCheck, Clock, Users, ChevronRight, CheckCircle, CreditCard, Lock, AlertCircle, Landmark, HelpCircle, FileText, Check, ChevronDown, ChevronUp, MapPin, Search } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { Analytics } from '@vercel/analytics/react';
 
 // --- SUPABASE INITIALIZATION ---
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -124,6 +125,7 @@ export default function App() {
         {view === 'admin' && <AdminView setView={setView} flightStatus={flightStatus} />}
       </main>
       <Footer setView={setView} />
+      <Analytics />
     </div>
   );
 }
@@ -249,6 +251,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <h2 className="text-3xl font-bold mb-8 text-center">Select Your Class</h2>
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           {Object.values(CABIN_CLASSES).map((cabin) => {
             const remaining = flightStatus[`${cabin.dbPrefix}_remaining`];
