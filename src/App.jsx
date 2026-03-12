@@ -898,7 +898,7 @@ function AdminView({ setView, flightStatus }) {
         <p className="font-bold text-slate-800 mb-2">Operations Guide:</p>
         <p>1. To view individual bookings and confirm wires, log into your <strong>Supabase Dashboard</strong>.</p>
         <p>2. Open the <code>bookings</code> table to manage statuses.</p>
-        <p>3. To export the flight manifest for the airline, go to <strong>Table Editor</strong> -> <strong>confirmed_manifest</strong> view and click Export CSV.</p>
+        <p>3. To export the flight manifest for the airline, go to <strong>Table Editor</strong> -&gt; <strong>confirmed_manifest</strong> view and click Export CSV.</p>
       </div>
     </div>
   );
