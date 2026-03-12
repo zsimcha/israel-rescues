@@ -14,8 +14,8 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
   routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
-  routeSub: 'Direct Charter Flight',
-  dateMain: 'March 18',
+  routeSub: 'Direct Charter Flight (Approx. 4 hours)',
+  dateMain: 'Thursday, March 19 (Early AM)',
   dateSub: 'Exact time confirmed 48-72 hours prior',
   operator: 'Operated by a licensed carrier arranged through Chapman Freeborn',
   aircraft: 'Airbus A340-300 (widebody) — 38 Business seats + 215 Economy seats',
@@ -161,6 +161,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
 
   const faqs = [
     { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
+    { q: "What connecting flight options do I have from Frankfurt (FRA)?", a: "Frankfurt is one of Europe's largest aviation hubs with dozens of daily direct flights to North America (JFK, Newark, etc.) and worldwide. You can find excellent options on Google Flights, Kayak, or Expedia. For those looking to use credit card points or frequent flyer miles, we recommend creating a free account on PointsYeah.com to easily search for low-point award flights." },
     { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees." },
     { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." },
     { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity, we will endeavor to charter an additional flight. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." }
@@ -665,7 +666,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
 
             <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm mb-6">
               <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Payment Update</p>
-              <p>Because this is a rapid-response emergency charter organized in a matter of days, our credit card processing gateway is currently undergoing its standard bank approval. We expect it to be live very soon, but because the flight is filling up now, we opened wire transfers so people don't lose their seats while we wait for the bank.</p>
+              <p>Because this is a rapid-response emergency charter, our credit card processing gateway is currently undergoing standard bank approval. <strong>You can complete your reservation below now, and we will notify you the moment credit card processing goes live.</strong> However, please note that seats are filling up quickly and can only be immediately secured in the meantime with a wire transfer.</p>
             </div>
 
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
