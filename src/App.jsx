@@ -160,6 +160,7 @@ function LandingView({ onSelectCabin, flightStatus }) {
   const isPartiallyFull = flightStatus.eco_remaining <= 0 || flightStatus.prem_remaining <= 0 || flightStatus.biz_remaining <= 0;
 
   const faqs = [
+    { q: "Who is organizing this flight?", a: "The flight is coordinated by Rescue Charters LLC and arranged through Chapman Freeborn, a global leader in aircraft chartering with over 50 years of experience in specialized aviation logistics. We’re not a commercial airline or an official organization. Like everyone else, we were in the exact same boat—struggling to find reliable flights out of Israel. We heard about people with the means chartering private jets to evacuate, and we decided to organize a widebody charter to bring that option to the broader community." },
     { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
     { q: "What connecting flight options do I have from Frankfurt (FRA)?", a: "Frankfurt is one of Europe's largest aviation hubs with dozens of daily direct flights to North America (JFK, Newark, etc.) and worldwide. You can find excellent options on Google Flights, Kayak, or Expedia. For those looking to use credit card points or frequent flyer miles, we recommend creating a free account on PointsYeah.com to easily search for low-point award flights." },
     { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees." },
@@ -202,10 +203,8 @@ function LandingView({ onSelectCabin, flightStatus }) {
               <p className="text-slate-300 text-sm mb-1">Availability</p>
               {totalRemaining <= 0 ? (
                 <p className="font-bold text-xl text-amber-400">Waitlist Only</p>
-              ) : totalRemaining <= 63 ? (
-                <p className="font-bold text-base text-red-400 mt-1 uppercase tracking-wider">Critical: Very Limited Seats</p>
               ) : (
-                <p className="font-bold text-base text-blue-300 mt-1 uppercase tracking-wider">Limited seats available</p>
+                <p className="font-bold text-base text-amber-400 mt-1 uppercase tracking-wider">Limited seats available</p>
               )}
             </div>
           </div>
@@ -249,21 +248,12 @@ function LandingView({ onSelectCabin, flightStatus }) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold mb-6 text-center">Select Your Class</h2>
-        
-        {/* Transparency Note */}
-        <div className="max-w-3xl mx-auto mb-10 bg-slate-100 border border-slate-200 rounded-lg p-4 flex items-start gap-3 text-sm text-slate-600">
-          <Info className="shrink-0 text-slate-400 mt-0.5" size={20} />
-          <p>
-            <strong>A note on pricing:</strong> This is a privately chartered widebody aircraft. Ticket prices directly reflect the exact divided costs of securing the private aircraft and the mandatory wartime aviation insurance premiums.
-          </p>
-        </div>
+        <h2 className="text-3xl font-bold mb-10 text-center">Select Your Class</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
           {Object.values(CABIN_CLASSES).map((cabin) => {
             const remaining = flightStatus[`${cabin.dbPrefix}_remaining`];
             const isWaitlist = remaining <= 0;
-            const showCount = remaining > 0 && remaining <= (cabin.capacity * 0.5);
 
             return (
               <div key={cabin.id} className={`bg-white rounded-xl shadow-sm border-2 overflow-hidden flex flex-col ${cabin.id === 'business' ? 'border-blue-900 shadow-lg' : 'border-slate-200'}`}>
@@ -278,10 +268,10 @@ function LandingView({ onSelectCabin, flightStatus }) {
                 <div className="bg-slate-50 border-b border-slate-200 py-2 px-6 flex justify-center min-h-[40px] items-center">
                   {isWaitlist ? (
                     <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><AlertCircle size={14}/> Waitlist Open</span>
-                  ) : showCount ? (
-                    <span className="bg-red-100 text-red-700 border border-red-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><Clock size={14}/> {remaining} Seats Left</span>
+                  ) : cabin.id === 'business' ? (
+                    <span className="bg-red-100 text-red-700 border border-red-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><Clock size={14}/> Almost Sold Out</span>
                   ) : (
-                    <span className="text-slate-400 text-xs uppercase tracking-wider font-semibold">Available</span>
+                    <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><Clock size={14}/> Limited Seats Remaining</span>
                   )}
                 </div>
 
@@ -402,7 +392,6 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
 
   const cabinDetails = CABIN_CLASSES[selectedCabin];
   
-  // Calculate specific seats vs lap infants
   const seatCount = passengers.filter(p => p.passengerType !== 'Infant').length;
   const infantCount = passengers.filter(p => p.passengerType === 'Infant').length;
   

@@ -102,9 +102,27 @@ serve(async (req: Request) => {
 
     let subject = '';
     let htmlContent = '';
+    let internalAlertHtml = '';
 
     if (type === 'INSERT') {
       const isWaitlist = record.payment_status === 'waitlist';
+
+      // --- NEW INTERNAL ALERT LOGIC (RESTORED) ---
+      internalAlertHtml = `
+        <div style='font-family: sans-serif; padding: 20px; border: 3px solid #0a192f; border-radius: 8px;'>
+          <h2 style='color: #0a192f; margin-top: 0;'>🚨 NEW BOOKING ALERT</h2>
+          <table style='width: 100%; border-collapse: collapse;'>
+            <tr><td style='padding: 5px; font-weight: bold;'>Name:</td><td>${escapeHtml(contactName)}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Email:</td><td>${record.email}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Phone:</td><td>${record.phone}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Reference:</td><td style='color: #2563eb; font-weight: bold;'>${bookingRef}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Class:</td><td>${cabinClass.toUpperCase()}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Passengers:</td><td>${passengerCount}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Total Due:</td><td>$${totalDue.toLocaleString()}</td></tr>
+            <tr><td style='padding: 5px; font-weight: bold;'>Method:</td><td>${paymentMethod.toUpperCase()}</td></tr>
+          </table>
+        </div>
+      `;
       
       // BRANCH 1: User selected 'wire'
       if (paymentMethod === 'wire') {
@@ -233,13 +251,16 @@ serve(async (req: Request) => {
           </div>
         </div>
       `;
-    } else {
-      console.log('Webhook event ignored:', type);
-      return new Response("Ignored", { status: 200 });
     }
 
     try {
+      // 1. SEND TO PASSENGER (Customer Email)
       const result = await sendEmail([record.email], subject, htmlContent);
+
+      // 2. SEND TO YOU (Internal Booking Alert) - Only on NEW bookings
+      if (type === 'INSERT' && internalAlertHtml) {
+        await sendEmail(['help@israelrescues.com'], `ALERT: New Booking ${bookingRef} (${contactName})`, internalAlertHtml);
+      }
 
       if (bookingId) {
         await supabase.from('emails_sent').insert([{
