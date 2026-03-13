@@ -159,14 +159,22 @@ function LandingView({ onSelectCabin, flightStatus }) {
   const isCompletelyFull = totalRemaining <= 0;
   const isPartiallyFull = flightStatus.eco_remaining <= 0 || flightStatus.prem_remaining <= 0 || flightStatus.biz_remaining <= 0;
 
-  const faqs = [
+  // BASE FAQs that always show
+  let faqs = [
     { q: "Who is organizing this flight?", a: "The flight is coordinated by Rescue Charters LLC and arranged through Chapman Freeborn, a global leader in aircraft chartering with over 50 years of experience in specialized aviation logistics. We’re not a commercial airline or an official organization. Like everyone else, we were in the exact same boat—struggling to find reliable flights out of Israel. We heard about people with the means chartering private jets to evacuate, and we decided to organize a widebody charter to bring that option to the broader community." },
     { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
     { q: "What connecting flight options do I have from Frankfurt (FRA)?", a: "Frankfurt is one of Europe's largest aviation hubs with dozens of daily direct flights to North America (JFK, Newark, etc.) and worldwide. You can find excellent options on Google Flights, Kayak, or Expedia. For those looking to use credit card points or frequent flyer miles, we recommend creating a free account on PointsYeah.com to easily search for low-point award flights." },
     { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees." },
-    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." },
-    { q: "What happens if I join the waitlist?", a: "If the primary flight is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity, we will endeavor to charter an additional flight. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." }
+    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
   ];
+
+  // DYNAMIC FAQ: Only add the waitlist FAQ if at least one cabin is full
+  if (isPartiallyFull) {
+    faqs.push({ 
+      q: "What happens if I join the waitlist?", 
+      a: "If your requested cabin class is full, you can join the priority waitlist. If the waitlist reaches sufficient capacity, we will endeavor to charter an additional flight. You must complete the wire transfer to secure your spot on the waitlist. If a second flight is not chartered, you will receive a full refund." 
+    });
+  }
 
   return (
     <div className="animate-in fade-in duration-500 pb-16">
@@ -335,7 +343,11 @@ function LandingView({ onSelectCabin, flightStatus }) {
               <p><strong>Onward Travel:</strong> We strongly recommend waiting until final flight confirmation is received before booking onward flights from Frankfurt.</p>
               <p><strong>Check-in:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure for check-in and security procedures.</p>
               <p><strong>Destination:</strong> This flight will land directly at Frankfurt Airport (FRA).</p>
-              <p><strong>Waitlist Policy:</strong> If the primary flight is full, you are securing a spot on the waitlist. Wire transfers are required to hold a waitlist spot and are fully refundable if a flight is not chartered.</p>
+              
+              {/* DYNAMIC WAITLIST POLICY: Only shows if at least one class is full */}
+              {isPartiallyFull && (
+                <p><strong>Waitlist Policy:</strong> If your requested cabin class is full, you are securing a spot on the waitlist. Wire transfers are required to hold a waitlist spot and are fully refundable if a flight is not chartered.</p>
+              )}
             </div>
           </div>
           
