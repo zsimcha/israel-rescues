@@ -13,42 +13,42 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
-  routeMain: 'Tel Aviv (TLV) to Frankfurt (FRA)',
+  routeMain: 'Tel Aviv (TLV) to Munich (MUC)',
   routeSub: 'Direct Charter Flight (Approx. 4 hours)',
   dateMain: 'Thursday, March 19 (Early AM)',
   dateSub: 'Exact time confirmed 48-72 hours prior',
   operator: 'Operated by a licensed carrier arranged through Chapman Freeborn',
-  aircraft: 'Airbus A340-300 (widebody) — 38 Business seats + 215 Economy seats',
-  totalSeats: 253
+  aircraft: 'Chartered Aircraft — 60 Economy+ seats + 120 Economy seats',
+  totalSeats: 180
 };
 
 const CABIN_CLASSES = {
   economy: { 
     id: 'economy', 
     dbPrefix: 'eco', 
-    capacity: 136, 
+    capacity: 120, 
     name: 'Economy Class', 
-    price: 1795, 
-    features: ['Standard seating', '1x20kg checked bag + carry-on + personal item', 'Hot kosher meals included'], 
+    price: 1650, 
+    features: [
+      'Standard seating', 
+      '1x20kg checked bag + carry-on + personal item', 
+      'Hot kosher meals included'
+    ], 
     color: 'bg-slate-600' 
   },
   premium: { 
     id: 'premium', 
     dbPrefix: 'prem', 
-    capacity: 79, 
+    capacity: 60, 
     name: 'Economy+', 
-    price: 1995, 
-    features: ['Front section seating for rapid deplaning', 'Priority boarding & guaranteed overhead space', '1x20kg checked bag + carry-on + personal item', 'Hot kosher meals included'], 
+    price: 1850, 
+    features: [
+      'Front section seating for rapid deplaning', 
+      'Priority boarding & guaranteed overhead space',
+      '1x20kg checked bag + carry-on + personal item', 
+      'Hot kosher meals included'
+    ], 
     color: 'bg-indigo-600' 
-  },
-  business: { 
-    id: 'business', 
-    dbPrefix: 'biz', 
-    capacity: 38, 
-    name: 'Business', 
-    price: 3250, 
-    features: ['150-160° angled recline seats', 'Maximum space & comfort', 'Priority boarding & premium service', '2x20kg checked bags + carry-on', 'Hot kosher meals included'], 
-    color: 'bg-blue-900' 
   }
 };
 
@@ -72,7 +72,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
   
-  // Added 'waitlist' to the valid views
   const [view, setViewState] = useState(() => {
     const hash = window.location.hash.replace('#', '');
     return ['landing', 'booking', 'waitlist', 'lookup'].includes(hash) ? hash : 'landing';
@@ -93,7 +92,7 @@ export default function App() {
 
   const [selectedCabin, setSelectedCabin] = useState('economy');
   const [flightStatus, setFlightStatus] = useState({ 
-    eco_remaining: 136, prem_remaining: 79, biz_remaining: 38,
+    eco_remaining: 120, prem_remaining: 60, biz_remaining: 0,
     eco_reserved: 0, prem_reserved: 0, biz_reserved: 0 
   });
   const [loadingData, setLoadingData] = useState(true);
@@ -131,14 +130,9 @@ export default function App() {
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [user]);
 
-  // We keep this function alive for when you reactivate bookings
   const handleSelectCabin = (cabinId) => {
     setSelectedCabin(cabinId);
     setView('booking');
-  };
-
-  const handleJoinWaitlist = () => {
-    setView('waitlist');
   };
 
   if (!authInitialized || loadingData) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>;
@@ -147,10 +141,13 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 flex flex-col">
       <Navbar setView={setView} />
+      {/* SOLD OUT BANNER */}
+      <div className="bg-slate-900 text-slate-300 py-3 px-4 sm:px-8 text-center text-sm border-b border-slate-700">
+        <span className="font-bold text-white mr-2">Update:</span> Our initial flight to Frankfurt (FRA) is <strong className="text-red-400">SOLD OUT</strong>. Due to overwhelming demand, we have opened a second route to Munich (MUC) below.
+      </div>
+      
       <main className="flex-grow">
-        {view === 'landing' && <LandingView onJoinWaitlist={handleJoinWaitlist} />}
-        {view === 'waitlist' && <WaitlistFlow setView={setView} supabase={supabase} />}
-        {/* The BookingFlow remains hidden here safely! */}
+        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} flightStatus={flightStatus} />}
         {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} flightStatus={flightStatus} />}
         {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
       </main>
@@ -183,14 +180,20 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onJoinWaitlist }) {
+function LandingView({ onSelectCabin, flightStatus }) {
   const [openFaq, setOpenFaq] = useState(null);
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
+  const totalRemaining = flightStatus.eco_remaining + flightStatus.prem_remaining;
+  const isCompletelyFull = totalRemaining <= 0;
+
   let faqs = [
+    { q: "What does 'Strictly Based on Demand' mean?", a: "To operate this second aircraft to Munich, we must reach a minimum passenger threshold to cover the cost of the private charter. By securing your seat now, you are registering your firm demand. If the minimum threshold is not met, the flight will not operate and you will receive a 100% refund immediately." },
     { q: "Who is organizing this flight?", a: "The flight is coordinated by Rescue Charters LLC and arranged through Chapman Freeborn, a global leader in aircraft chartering with over 50 years of experience in specialized aviation logistics. We’re not a commercial airline or an official organization. Like everyone else, we were in the exact same boat—struggling to find reliable flights out of Israel. We heard about people with the means chartering private jets to evacuate, and we decided to organize a widebody charter to bring that option to the broader community." },
-    { q: "What happens when I join the Future Flights Waitlist?", a: "By joining the waitlist, you give us an idea of where people need to go and when. If there is enough demand for a specific route (e.g., Athens, Larnaca, or another European hub), we will endeavor to charter an additional aircraft. Waitlisted individuals will receive priority booking access before any new flight is announced publicly." },
-    { q: "Do I have to pay to join the waitlist?", a: "No. The waitlist is completely free to join and does not require a credit card or wire transfer. It simply holds your place in line." }
+    { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
+    { q: "What connecting flight options do I have from Munich (MUC)?", a: "Munich is a massive European aviation hub offering daily direct flights to North America and worldwide. We recommend using tools like Google Flights or Expedia to book onward travel once the charter is fully confirmed. You can also create a free acount at points.yeah to view options with airline points." },
+    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price." },
+    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
   ];
 
   return (
@@ -206,7 +209,7 @@ function LandingView({ onJoinWaitlist }) {
             <Plane size={16} /> Emergency Charter Flight
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4 max-w-3xl">
-            Israel to Frankfurt <br className="hidden sm:block"/> Charter Flight
+            Israel to Munich <br className="hidden sm:block"/> Charter Flight
           </h1>
           <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mb-8 leading-relaxed">
             {FLIGHT_INFO.operator}. Direct charter flight providing immediate outbound travel.
@@ -224,51 +227,142 @@ function LandingView({ onJoinWaitlist }) {
               <p className="text-xs text-slate-400 mt-0.5">{FLIGHT_INFO.routeSub}</p>
             </div>
             <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
+              <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
               <p className="text-slate-300 text-sm mb-1">Availability</p>
-              <p className="font-bold text-xl text-red-400">SOLD OUT</p>
+              {totalRemaining <= 0 ? (
+                <p className="font-bold text-xl text-amber-400">Waitlist Only</p>
+              ) : (
+                <p className="font-bold text-base text-blue-300 mt-1 uppercase tracking-wider">Seats available</p>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-red-50 border-b border-red-200 text-red-900 py-6 px-4 sm:px-8 text-center">
-        <h3 className="text-lg font-bold flex items-center justify-center gap-2 mb-2"><AlertCircle size={20} /> Thursday Flight is Sold Out</h3>
-        <p className="text-sm max-w-2xl mx-auto">
-          Due to overwhelming demand, all seats on our Thursday, March 19 flight to Frankfurt have been secured. We are actively gauging demand to charter additional aircraft to other safe regional hubs.
-        </p>
-        <button 
-          onClick={onJoinWaitlist}
-          className="mt-4 bg-red-700 text-white px-6 py-2 rounded-lg font-bold hover:bg-red-800 transition-colors inline-flex items-center gap-2 shadow-sm"
-        >
-          Join Future Flights Waitlist <ChevronRight size={16}/>
-        </button>
+      <div className="bg-blue-50 border-b border-blue-200 text-blue-900 py-4 px-4 sm:px-8 text-center text-sm font-medium">
+        <AlertCircle className="inline mb-1 mr-1" size={18}/> <strong>Flight Contingency:</strong> This Munich flight is strictly based on passenger demand. Reserve your seat now to guarantee the flight operates. Tickets are 100% refundable if the minimum threshold is not met.
+      </div>
+
+      <div className="bg-white py-8 border-b border-slate-200 shadow-sm relative z-20 mx-4 sm:mx-8 lg:mx-auto max-w-7xl rounded-b-xl px-4 sm:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+          <div className="flex gap-3 items-start">
+            <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0"><ShieldCheck size={20} /></div>
+            <div>
+              <h3 className="font-bold text-base mb-1 text-slate-900">Refundable Cancellations</h3>
+              <p className="text-slate-600">All ticket purchases are 100% refundable if the charter flight does not meet demand or does not operate.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 items-start">
+            <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><CheckCircle size={20} /></div>
+            <div>
+              <h3 className="font-bold text-base mb-1 text-slate-900">Instant Reservation</h3>
+              <p className="text-slate-600">Seats are secured and counted toward our flight minimum once payment is received.</p>
+            </div>
+          </div>
+          <div className="flex gap-3 items-start">
+            <div className="bg-indigo-100 p-2 rounded-full text-indigo-600 shrink-0"><Users size={20} /></div>
+            <div>
+              <h3 className="font-bold text-base mb-1 text-slate-900">Family Seating</h3>
+              <p className="text-slate-600">Families and groups booking together will be seated together whenever possible.</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold mb-10 text-center">Flight Class Information</h2>
+        <h2 className="text-3xl font-bold mb-10 text-center">Select Your Class</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 opacity-75">
-          {Object.values(CABIN_CLASSES).map((cabin) => (
-            <div key={cabin.id} className="bg-white rounded-xl shadow-sm border-2 border-slate-200 overflow-hidden flex flex-col grayscale">
-              <div className={`${cabin.color} text-white px-6 py-4 flex justify-between items-center relative`}>
-                <h3 className="text-xl font-bold">{cabin.name}</h3>
-              </div>
-              
-              <div className="bg-slate-100 border-b border-slate-200 py-2 px-6 flex justify-center min-h-[40px] items-center">
-                <span className="text-slate-500 text-xs font-bold px-3 py-1 uppercase tracking-wider flex items-center gap-1">Sold Out</span>
-              </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto gap-6 mb-16">
+          {Object.values(CABIN_CLASSES).map((cabin) => {
+            const remaining = flightStatus[`${cabin.dbPrefix}_remaining`];
+            const isWaitlist = remaining <= 0;
 
-              <div className="p-6 flex-grow">
-                <ul className="space-y-3 mb-8">
-                  {cabin.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-2 text-slate-500 text-sm">
-                      <CheckCircle size={16} className="text-slate-400 shrink-0" /> {feature}
-                    </li>
-                  ))}
-                </ul>
+            return (
+              <div key={cabin.id} className="bg-white rounded-xl shadow-sm border-2 border-slate-200 overflow-hidden flex flex-col">
+                <div className={`${cabin.color} text-white px-6 py-4 flex justify-between items-center relative`}>
+                  <h3 className="text-xl font-bold">{cabin.name}</h3>
+                  <div className="text-right">
+                    <span className="text-2xl font-extrabold">${cabin.price.toLocaleString()}</span>
+                    <span className="text-sm opacity-80 block">/ seat</span>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 border-b border-slate-200 py-2 px-6 flex justify-center min-h-[40px] items-center">
+                  {isWaitlist ? (
+                    <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><AlertCircle size={14}/> Waitlist Open</span>
+                  ) : (
+                    <span className="text-slate-400 text-xs uppercase tracking-wider font-semibold">Available</span>
+                  )}
+                </div>
+
+                <div className="p-6 flex-grow">
+                  <ul className="space-y-3 mb-8">
+                    {cabin.features.map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2 text-slate-700 text-sm">
+                        <CheckCircle size={16} className="text-slate-400 shrink-0" /> {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="p-6 pt-0 mt-auto">
+                  <button 
+                    onClick={() => onSelectCabin(cabin.id)}
+                    className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
+                      ${isWaitlist ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-[#0a192f] text-white hover:bg-slate-800'}`}
+                  >
+                    {isWaitlist ? `Join Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
+                  </button>
+                </div>
               </div>
+            );
+          })}
+        </div>
+
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold mb-8 text-center text-[#0a192f]">Why This Charter Flight</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className="bg-blue-50 p-3 rounded-full mb-4"><MapPin size={24} className="text-blue-600" /></div>
+              <h4 className="font-bold text-slate-900 mb-2">Direct departure from Tel Aviv</h4>
+              <p className="text-sm text-slate-600">Avoid complicated overland travel routes and multiple connections.</p>
             </div>
-          ))}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className="bg-blue-50 p-3 rounded-full mb-4"><Plane size={24} className="text-blue-600" /></div>
+              <h4 className="font-bold text-slate-900 mb-2">Fast onward connections</h4>
+              <p className="text-sm text-slate-600">Arrive in Munich (MUC) for easy onward flights to international destinations.</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className="bg-blue-50 p-3 rounded-full mb-4"><Users size={24} className="text-blue-600" /></div>
+              <h4 className="font-bold text-slate-900 mb-2">Organized coordination</h4>
+              <p className="text-sm text-slate-600">Arranged through Chapman Freeborn, a global aircraft charter specialist.</p>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
+              <div className="bg-blue-50 p-3 rounded-full mb-4"><ShieldCheck size={24} className="text-blue-600" /></div>
+              <h4 className="font-bold text-slate-900 mb-2">Safe Third Country</h4>
+              <p className="text-sm text-slate-600">Land in Germany, well outside the conflict zone, to plan your next steps safely.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
+          <div className="bg-amber-50 p-8 rounded-xl border border-amber-200 text-amber-900 shadow-sm">
+            <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><AlertCircle size={24} className="text-amber-600"/> Important Info</h2>
+            <div className="space-y-4 text-sm">
+              <p><strong>Strictly Based on Demand:</strong> This flight will only operate if minimum passenger counts are met to cover the private charter cost. If it does not operate, you will receive a 100% refund.</p>
+              <p><strong>Flight Confirmation & Security:</strong> Due to the regional security situation, exact departure date and time are subject to change. Final schedule details will be confirmed 48 to 72 hours prior to departure.</p>
+              <p><strong>Onward Travel:</strong> We strongly recommend waiting until final flight confirmation is received before booking onward flights from Munich.</p>
+              <p><strong>Check-in:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure.</p>
+            </div>
+          </div>
+          
+          <div className="bg-slate-100 p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+            <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><FileText size={24} className="text-slate-600"/> Legal Notice</h2>
+            <div className="text-sm text-slate-600 space-y-4 leading-relaxed">
+              <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker. Rescue Charters LLC acts solely as an independent charter coordinator.</p>
+              <p><strong>Limitation of Liability:</strong> Rescue Charters LLC is not responsible or liable for any direct, indirect, incidental, or consequential damages, missed connections, delays, cancellations, or losses of any kind arising from or relating to the operation or non-operation of this flight.</p>
+              <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees.</p>
+            </div>
+          </div>
         </div>
 
         <div className="max-w-3xl mx-auto">
@@ -294,135 +388,7 @@ function LandingView({ onJoinWaitlist }) {
   );
 }
 
-function WaitlistFlow({ setView, supabase }) {
-  const [formData, setFormData] = useState({
-    name: '', email: '', phoneCode: '+1', phone: '',
-    passengerCount: 1, destination: '', earliestDeparture: ''
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const handleChange = (e) => {
-    let { name, value } = e.target;
-    if (name === 'phone') value = formatPhoneNumber(value);
-    setFormData({ ...formData, [name]: value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrorMsg('');
-
-    try {
-      const { error } = await supabase.from('waitlist').insert([{
-        name: formData.name,
-        email: formData.email,
-        phone: `${formData.phoneCode} ${formData.phone}`,
-        passenger_count: parseInt(formData.passengerCount, 10),
-        desired_destination: formData.destination,
-        earliest_departure: formData.earliestDeparture || null
-      }]);
-
-      if (error) throw error;
-      setIsSuccess(true);
-    } catch (err) {
-      console.error(err);
-      setErrorMsg('Failed to join waitlist. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (isSuccess) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-16 animate-in zoom-in-95 duration-500 text-center">
-        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle size={40} />
-        </div>
-        <h2 className="text-3xl font-extrabold mb-4">You're on the list!</h2>
-        <p className="text-slate-600 mb-8">
-          Thank you. We have recorded your interest for <strong>{formData.passengerCount} passenger{formData.passengerCount > 1 ? 's' : ''}</strong> to <strong>{formData.destination || 'a European Hub'}</strong>. 
-          <br/><br/>If demand allows us to charter an aircraft that meets your needs, you will receive an email with priority booking access before the flight is announced publicly.
-        </p>
-        <button onClick={() => setView('landing')} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
-          Return to Homepage
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-2xl mx-auto px-4 py-12 animate-in slide-in-from-bottom-4 duration-500">
-      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
-        &larr; Back to Flight Details
-      </button>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="bg-[#0a192f] text-white p-6 sm:p-8">
-          <h1 className="text-2xl font-bold mb-2">Future Flights Waitlist</h1>
-          <p className="text-slate-300 text-sm">Our Thursday flight to Frankfurt is sold out. Join this priority list to help us gauge demand for additional charters. You will get first access if a flight is scheduled.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
-          {errorMsg && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm font-medium flex items-center gap-2"><AlertCircle size={18}/> {errorMsg}</div>}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Full Name *</label>
-              <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address *</label>
-              <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Phone Number *</label>
-              <div className="flex gap-2">
-                <select name="phoneCode" value={formData.phoneCode} onChange={handleChange} className="w-1/3 md:w-1/4 border border-slate-300 rounded-md p-2.5 outline-none bg-white">
-                  {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                </select>
-                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-2/3 md:w-3/4 border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="(555) 000-0000" required/>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-200 pt-6">
-            <h3 className="font-bold text-slate-800 mb-4">Travel Needs</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">How many passengers? *</label>
-                <input type="number" min="1" max="20" name="passengerCount" value={formData.passengerCount} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Earliest possible departure</label>
-                <input type="date" name="earliestDeparture" value={formData.earliestDeparture} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Where are you trying to go? *</label>
-                <select name="destination" value={formData.destination} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none bg-white" required>
-                  <option value="">Select a regional hub...</option>
-                  <option value="Athens (ATH)">Athens, Greece (ATH)</option>
-                  <option value="Larnaca (LCA)">Larnaca, Cyprus (LCA)</option>
-                  <option value="Frankfurt (FRA)">Frankfurt, Germany (FRA)</option>
-                  <option value="London (LHR/STN)">London, UK (LHR/STN)</option>
-                  <option value="Other European Hub">Other European Hub</option>
-                </select>
-                <p className="text-[10px] text-slate-500 mt-1 italic">Note: We cannot charter direct flights to the United States. We only charter to European hubs where you can connect onward.</p>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 mt-4 flex justify-center items-center gap-2">
-            {isSubmitting ? 'Joining...' : 'Join Priority Waitlist'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// === KEEPING YOUR FULL BOOKING FLOW INTACT ===
+// === BOOKING FLOW (Adapted for Munich) ===
 function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState([{ 
@@ -730,8 +696,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
             )}
 
             <div className="bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-lg text-sm shadow-sm mb-6">
-              <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Payment Update</p>
-              <p>Because this is a rapid-response emergency charter, our credit card processing gateway is currently undergoing standard bank approval. <strong>You can complete your reservation below now, and we will notify you the moment credit card processing goes live.</strong> However, please note that seats are filling up quickly and can only be immediately secured in the meantime with a wire transfer.</p>
+              <p className="font-bold flex items-center gap-2 mb-1"><Info size={16}/> Subject to Demand</p>
+              <p>Because this flight operates strictly based on demand, we require payment to secure your seat and verify our minimum passenger count. <strong>If the minimum threshold is not met and the flight does not operate, your payment will be refunded 100%.</strong></p>
             </div>
 
             <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><CreditCard size={20} className="text-blue-600"/> Payment Options</h2>
@@ -788,7 +754,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
             <div className="mb-8">
               <h3 className="font-bold mb-3 flex items-center gap-2"><FileText size={18}/> Terms & Conditions</h3>
               <div className="bg-slate-100 p-4 rounded-lg text-xs text-slate-700 space-y-2 h-32 overflow-y-auto border border-slate-200 mb-4">
-                <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees.</p>
+                <p><strong>This flight is strictly based on demand.</strong> All ticket purchases are fully refundable if the charter flight does not operate due to lack of minimum passenger count.</p>
                 <p className="mt-2 font-bold text-slate-900">Limitation of Liability:</p>
                 <p>Rescue Charters LLC acts solely as an independent flight coordinator and intermediary. Rescue Charters LLC is not responsible or liable for any delays, cancellations, missed connections, or any direct, indirect, incidental, or consequential damages resulting from the operation or non-operation of this flight.</p>
                 <p className="mt-2">By purchasing a ticket you acknowledge that:</p>

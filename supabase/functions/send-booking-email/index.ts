@@ -107,10 +107,9 @@ serve(async (req: Request) => {
     if (type === 'INSERT') {
       const isWaitlist = record.payment_status === 'waitlist';
 
-      // --- NEW INTERNAL ALERT LOGIC (RESTORED) ---
       internalAlertHtml = `
         <div style='font-family: sans-serif; padding: 20px; border: 3px solid #0a192f; border-radius: 8px;'>
-          <h2 style='color: #0a192f; margin-top: 0;'>🚨 NEW BOOKING ALERT</h2>
+          <h2 style='color: #0a192f; margin-top: 0;'>🚨 NEW BOOKING ALERT (MUC)</h2>
           <table style='width: 100%; border-collapse: collapse;'>
             <tr><td style='padding: 5px; font-weight: bold;'>Name:</td><td>${escapeHtml(contactName)}</td></tr>
             <tr><td style='padding: 5px; font-weight: bold;'>Email:</td><td>${record.email}</td></tr>
@@ -124,7 +123,12 @@ serve(async (req: Request) => {
         </div>
       `;
       
-      // BRANCH 1: User selected 'wire'
+      const demandDisclaimerHtml = `
+        <div style='background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; font-size: 14px; line-height: 1.5; color: #1e3a8a; margin-bottom: 20px;'>
+          <strong>Flight Contingency:</strong> This Munich flight operates strictly based on passenger demand. We are collecting payments now to verify minimum passenger counts. If the minimum threshold is not met, the flight will not operate and you will receive a <strong>100% refund immediately</strong>.
+        </div>
+      `;
+
       if (paymentMethod === 'wire') {
         const statusText = isWaitlist ? "ACTION REQUIRED: WAITLIST SPOT HELD (AWAITING WIRE)" : "ACTION REQUIRED: RESERVATION HELD (AWAITING WIRE)";
         const seatLabel = isWaitlist ? "Waitlist Spots" : "Seats Reserved";
@@ -135,17 +139,25 @@ serve(async (req: Request) => {
             <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
               <div style='background-color: #0a192f; color: #ffffff; padding: 30px 20px; text-align: center;'>
                 <h1 style='margin: 0; font-size: 24px; letter-spacing: 1px;'>ISRAEL RESCUES</h1>
-                <p style='margin: 5px 0 0 0; color: #94a3b8; font-size: 14px;'>Charter Flight Reservation</p>
+                <p style='margin: 5px 0 0 0; color: #94a3b8; font-size: 14px;'>Charter Flight Reservation (Munich)</p>
               </div>
               <div style='padding: 30px 20px;'>
                 <div style='display: inline-block; background-color: #fef3c7; color: #b45309; padding: 8px 16px; border-radius: 4px; font-weight: bold; font-size: 14px; margin-bottom: 20px; border: 1px solid #fde68a;'>
                   ${escapeHtml(statusText)}
                 </div>
                 <p>Dear ${escapeHtml(contactName)},</p>
-                <p>Your request for the emergency charter flight from Tel Aviv to Frankfurt has been received.</p>
-                <div style='background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; font-size: 14px; line-height: 1.5; color: #1e3a8a; margin-bottom: 20px;'>
+                <p>Your request for the emergency charter flight from Tel Aviv to Munich has been received.</p>
+                
+                ${demandDisclaimerHtml}
+
+                <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-bottom: 20px;'>
+                  <p><strong>Booking Reference:</strong> <span style='color: #2563eb; font-size: 18px;'>${bookingRef}</span></p>
+                  <p><strong>${seatLabel}:</strong> ${passengerCount} x ${cabinClass.toUpperCase()}</p>
+                </div>
+
+                <div style='background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 15px; font-size: 14px; line-height: 1.5; color: #334155; margin-bottom: 20px;'>
                   <strong>Wire Instructions:</strong><br>
-                  To confirm your spot, payment must be initiated via bank wire within <strong>6 hours</strong>.<br><br>
+                  To secure your spot and help us reach the flight minimum, payment must be initiated via bank wire within <strong>6 hours</strong>.<br><br>
                   <strong>Bank Name:</strong> Coastal Community Bank (5415 Evergreen Way, Everett, WA 98203)<br>
                   <strong>Account Name:</strong> Rescue Charters LLC<br>
                   <strong>Account Number:</strong> 875110492670<br>
@@ -154,16 +166,11 @@ serve(async (req: Request) => {
                   <em>Total Due: $${totalDue.toLocaleString()}</em><br><br>
                   <span style="color: #b45309; font-weight: bold;">IMPORTANT:</span> After sending your wire, please email the confirmation receipt to <a href="mailto:help@israelrescues.com">help@israelrescues.com</a> and include your booking number (${bookingRef}).
                 </div>
-                <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-bottom: 20px;'>
-                  <p><strong>Booking Reference:</strong> <span style='color: #2563eb; font-size: 18px;'>${bookingRef}</span></p>
-                  <p><strong>${seatLabel}:</strong> ${passengerCount} x ${cabinClass.toUpperCase()}</p>
-                </div>
               </div>
             </div>
           </div>
         `;
       } 
-      // BRANCH 2: User selected 'cc' (Credit Card)
       else {
         const seatLabel = isWaitlist ? "Waitlist Spots" : "Seats Requested";
 
@@ -173,16 +180,18 @@ serve(async (req: Request) => {
             <div style='max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
               <div style='background-color: #0a192f; color: #ffffff; padding: 30px 20px; text-align: center;'>
                 <h1 style='margin: 0; font-size: 24px; letter-spacing: 1px;'>ISRAEL RESCUES</h1>
-                <p style='margin: 5px 0 0 0; color: #94a3b8; font-size: 14px;'>Charter Flight Reservation Hold</p>
+                <p style='margin: 5px 0 0 0; color: #94a3b8; font-size: 14px;'>Charter Flight Reservation Hold (Munich)</p>
               </div>
               <div style='padding: 30px 20px;'>
                 <p>Dear ${escapeHtml(contactName)},</p>
-                <p>We have successfully received your passenger manifest for the emergency charter flight from Tel Aviv to Frankfurt.</p>
+                <p>We have successfully received your passenger manifest for the emergency charter flight from Tel Aviv to Munich.</p>
                 <p>Because you selected to pay via Credit Card, <strong>we have placed your reservation on hold. We will email you the moment our credit card gateway receives final bank approval so you can complete your payment.</strong></p>
                 
+                ${demandDisclaimerHtml}
+
                 <div style='background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 15px; font-size: 14px; line-height: 1.5; color: #991b1b; margin-bottom: 20px;'>
                   <strong>⚠️ Important Notice Regarding Your Seat:</strong><br>
-                  Seats on this flight are extremely limited and are strictly secured on a <strong>first-to-pay basis</strong>. Your seat is not fully guaranteed until payment is complete.
+                  Seats on this flight are strictly secured on a <strong>first-to-pay basis</strong>. Your seat is not fully guaranteed until payment is complete.
                 </div>
 
                 <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-bottom: 20px;'>
@@ -235,10 +244,10 @@ serve(async (req: Request) => {
                 ✅ BOOKING CONFIRMED & PAID
               </div>
               <p>Dear ${escapeHtml(contactName)},</p>
-              <p>We have successfully received your payment. Your seats are <strong>fully confirmed</strong>.</p>
+              <p>We have successfully received your payment. Your seats are <strong>fully confirmed</strong> on our manifest.</p>
               <div style='background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin-bottom: 20px;'>
-                <p><strong>Route:</strong> Tel Aviv (TLV) ✈ Frankfurt (FRA)</p>
-                <p><strong>Target Departure:</strong> March 19 (Early AM)</p>
+                <p><strong>Route:</strong> Tel Aviv (TLV) ✈ Munich (MUC)</p>
+                <p><strong>Target Departure:</strong> Thursday, March 19 (Early AM)</p>
                 <p><strong>Seats Confirmed:</strong> ${passengerCount} x ${cabinClass.toUpperCase()}</p>
                 <p><strong>Booking Reference:</strong> <span style='color: #2563eb; font-size: 18px;'>${bookingRef}</span></p>
               </div>
@@ -254,10 +263,8 @@ serve(async (req: Request) => {
     }
 
     try {
-      // 1. SEND TO PASSENGER (Customer Email)
       const result = await sendEmail([record.email], subject, htmlContent);
 
-      // 2. SEND TO YOU (Internal Booking Alert) - Only on NEW bookings
       if (type === 'INSERT' && internalAlertHtml) {
         await sendEmail(['help@israelrescues.com'], `ALERT: New Booking ${bookingRef} (${contactName})`, internalAlertHtml);
       }
