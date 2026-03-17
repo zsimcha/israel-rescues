@@ -13,13 +13,12 @@ const supabase = (supabaseUrl && supabaseAnonKey)
 
 // --- CONSTANTS & CONFIG ---
 const FLIGHT_INFO = {
-  routeMain: 'Tel Aviv (TLV) to Munich (MUC)',
-  routeSub: 'Direct Charter Flight (Approx. 4 hours)',
-  dateMain: 'Thursday, March 19 (Early AM)',
-  dateSub: 'Exact time confirmed 48-72 hours prior',
-  operator: 'Operated by a licensed carrier arranged through Chapman Freeborn',
-  aircraft: 'Chartered Aircraft — 60 Economy+ seats + 120 Economy seats',
-  totalSeats: 180
+  routeMain: 'Tel Aviv (TLV) to Europe',
+  routeSub: 'Frankfurt (FRA) & Munich (MUC)',
+  dateMain: 'Thursday, March 19',
+  dateSub: 'Flights are currently full',
+  operator: 'Operated by licensed air carriers',
+  aircraft: 'Private Charter Flights',
 };
 
 const CABIN_CLASSES = {
@@ -74,13 +73,13 @@ export default function App() {
   
   const [view, setViewState] = useState(() => {
     const hash = window.location.hash.replace('#', '');
-    return ['landing', 'booking', 'waitlist', 'lookup'].includes(hash) ? hash : 'landing';
+    return ['landing', 'lookup', 'booking', 'waitlist'].includes(hash) ? hash : 'landing';
   });
 
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
-      const validView = ['landing', 'booking', 'waitlist', 'lookup'].includes(hash) ? hash : 'landing';
+      const validView = ['landing', 'lookup', 'booking', 'waitlist'].includes(hash) ? hash : 'landing';
       setViewState(validView);
       window.scrollTo(0, 0); 
     };
@@ -92,8 +91,8 @@ export default function App() {
 
   const [selectedCabin, setSelectedCabin] = useState('economy');
   const [flightStatus, setFlightStatus] = useState({ 
-    eco_remaining: 120, prem_remaining: 60, biz_remaining: 0,
-    eco_reserved: 0, prem_reserved: 0, biz_reserved: 0 
+    eco_remaining: 0, prem_remaining: 0, biz_remaining: 0,
+    eco_reserved: 120, prem_reserved: 60, biz_reserved: 0 
   });
   const [loadingData, setLoadingData] = useState(true);
 
@@ -130,26 +129,25 @@ export default function App() {
     return () => { if (channel) supabase.removeChannel(channel); };
   }, [user]);
 
-  const handleSelectCabin = (cabinId) => {
-    setSelectedCabin(cabinId);
-    setView('booking');
-  };
-
   if (!authInitialized || loadingData) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>;
   if (!supabase) return <div className="min-h-screen flex items-center justify-center">Missing Supabase config.</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-blue-100 flex flex-col">
       <Navbar setView={setView} />
-      {/* SOLD OUT BANNER */}
-      <div className="bg-slate-900 text-slate-300 py-3 px-4 sm:px-8 text-center text-sm border-b border-slate-700">
-        <span className="font-bold text-white mr-2">Update:</span> Our initial flight to Frankfurt (FRA) is <strong className="text-red-400">SOLD OUT</strong>. Due to overwhelming demand, we have opened a second route to Munich (MUC) below.
+      
+      {/* GLOBAL SOLD OUT BANNER */}
+      <div className="bg-red-900 text-red-50 py-3 px-4 sm:px-8 text-center text-sm font-medium border-b border-red-950 shadow-inner">
+        <AlertCircle size={16} className="inline mr-2 mb-0.5" />
+        <strong>Update:</strong> All scheduled charter flights (Frankfurt and Munich) are completely sold out. We are no longer accepting new reservations or waitlist requests.
       </div>
       
       <main className="flex-grow">
-        {view === 'landing' && <LandingView onSelectCabin={handleSelectCabin} flightStatus={flightStatus} />}
-        {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} flightStatus={flightStatus} />}
+        {view === 'landing' && <LandingView setView={setView} />}
         {view === 'lookup' && <LookupView setView={setView} supabase={supabase} />}
+        {/* Hidden but completely intact below */}
+        {view === 'booking' && <BookingFlow setView={setView} selectedCabin={selectedCabin} user={user} supabase={supabase} flightStatus={flightStatus} />}
+        {view === 'waitlist' && <WaitlistFlow setView={setView} supabase={supabase} />}
       </main>
       <Footer />
       <Analytics />
@@ -167,12 +165,9 @@ function Navbar({ setView }) {
             <span className="font-bold text-xl tracking-tight">Israel Rescues</span>
           </div>
           <div className="flex items-center gap-6">
-            <button onClick={() => setView('lookup')} className="text-sm font-medium text-slate-300 hover:text-white transition-colors flex items-center gap-1">
+            <button onClick={() => setView('lookup')} className="bg-white/10 px-4 py-2 rounded text-sm font-medium text-white hover:bg-white/20 transition-colors flex items-center gap-2">
               <Search size={16}/> Find Reservation
             </button>
-            <div className="text-sm font-medium text-slate-300 hidden sm:block">
-              Help@IsraelRescues.com
-            </div>
           </div>
         </div>
       </div>
@@ -180,187 +175,72 @@ function Navbar({ setView }) {
   );
 }
 
-function LandingView({ onSelectCabin, flightStatus }) {
+function LandingView({ setView }) {
   const [openFaq, setOpenFaq] = useState(null);
   const toggleFaq = (index) => setOpenFaq(openFaq === index ? null : index);
 
-  const totalRemaining = flightStatus.eco_remaining + flightStatus.prem_remaining;
-  const isCompletelyFull = totalRemaining <= 0;
-
   let faqs = [
-    { q: "What does 'Strictly Based on Demand' mean?", a: "To operate this second aircraft to Munich, we must reach a minimum passenger threshold to cover the cost of the private charter. By securing your seat now, you are registering your firm demand. If the minimum threshold is not met, the flight will not operate and you will receive a 100% refund immediately." },
-    { q: "Who is organizing this flight?", a: "The flight is coordinated by Rescue Charters LLC and arranged through Chapman Freeborn, a global leader in aircraft chartering with over 50 years of experience in specialized aviation logistics. We’re not a commercial airline or an official organization. Like everyone else, we were in the exact same boat—struggling to find reliable flights out of Israel. We heard about people with the means chartering private jets to evacuate, and we decided to organize a widebody charter to bring that option to the broader community." },
-    { q: "When will the final flight details be confirmed?", a: "Due to the regional security situation, the exact departure date and time are subject to change. Final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information at that time." },
-    { q: "What connecting flight options do I have from Munich (MUC)?", a: "Munich is a massive European aviation hub offering daily direct flights to North America and worldwide. We recommend using tools like Google Flights or Expedia to book onward travel once the charter is fully confirmed. You can also create a free acount at points.yeah to view options with airline points." },
-    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price." },
-    { q: "Will families sit together?", a: "Yes. We will make every effort to seat all passengers on the same reservation together. If you have a special seating requirement, please contact us at Help@IsraelRescues.com and we will do our best to accommodate." }
+    { q: "Who is organizing these flights?", a: "These flights are coordinated by Rescue Charters LLC. We’re not a commercial airline or an official organization. Like everyone else, we were in the exact same boat—struggling to find reliable flights out of Israel. We decided to organize these private charters to bring that option to the broader community." },
+    { q: "Will there be more flights?", a: "At this time, both our Frankfurt and Munich flights are at maximum capacity and our manifests are closed. We are not organizing any additional flights or maintaining a waitlist at this time." },
+    { q: "I have a reservation, how do I check my status?", a: "You can check the status of your payment and reservation by clicking the 'Find Reservation' button at the top of the page. You will need your email address and your booking reference code." },
+    { q: "When will the final flight details be confirmed for passengers?", a: "Due to the regional security situation, final operational details and departure schedules will be confirmed 48 to 72 hours prior to departure. Passengers will receive full flight information via email at that time." },
+    { q: "Can I get a refund?", a: "All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price." }
   ];
 
   return (
     <div className="animate-in fade-in duration-500 pb-16">
-      <div className="relative bg-[#0a192f] text-white py-16 sm:py-20 overflow-hidden">
+      <div className="relative bg-[#0a192f] text-white py-16 sm:py-24 overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-25"/>
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/80 to-transparent"></div>
+          <img src="https://images.unsplash.com/photo-1540962351504-03099e0a754b?q=80&w=2000&auto=format&fit=crop" alt="Widebody Aircraft" className="w-full h-full object-cover opacity-20 grayscale"/>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0a192f] via-[#0a192f]/90 to-transparent"></div>
         </div>
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500/30 text-blue-200 text-sm font-medium mb-6">
-            <Plane size={16} /> Emergency Charter Flight
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center sm:text-left flex flex-col items-center sm:items-start">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-red-200 text-sm font-bold mb-6 uppercase tracking-wider">
+            All Flights Sold Out
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-4 max-w-3xl">
-            Israel to Munich <br className="hidden sm:block"/> Charter Flight
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mb-6 max-w-3xl">
+            Emergency Charter Flights
           </h1>
-          <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mb-8 leading-relaxed">
-            {FLIGHT_INFO.operator}. Direct charter flight providing immediate outbound travel.
+          <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mb-10 leading-relaxed">
+            Due to overwhelming demand, all seats on our scheduled charter flights have been secured. We are no longer accepting reservations.
           </p>
           
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 max-w-4xl">
-            <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md">
-              <p className="text-slate-300 text-sm mb-1">Departure</p>
-              <p className="font-semibold text-lg">{FLIGHT_INFO.dateMain}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{FLIGHT_INFO.dateSub}</p>
-            </div>
-            <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md">
-              <p className="text-slate-300 text-sm mb-1">Route</p>
-              <p className="font-semibold text-lg">{FLIGHT_INFO.routeMain}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{FLIGHT_INFO.routeSub}</p>
-            </div>
-            <div className="bg-white/10 p-4 rounded-lg border border-white/20 backdrop-blur-md relative overflow-hidden">
-              <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">LIVE</div>
-              <p className="text-slate-300 text-sm mb-1">Availability</p>
-              {totalRemaining <= 0 ? (
-                <p className="font-bold text-xl text-amber-400">Waitlist Only</p>
-              ) : (
-                <p className="font-bold text-base text-blue-300 mt-1 uppercase tracking-wider">Seats available</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-blue-50 border-b border-blue-200 text-blue-900 py-4 px-4 sm:px-8 text-center text-sm font-medium">
-        <AlertCircle className="inline mb-1 mr-1" size={18}/> <strong>Flight Contingency:</strong> This Munich flight is strictly based on passenger demand. Reserve your seat now to guarantee the flight operates. Tickets are 100% refundable if the minimum threshold is not met.
-      </div>
-
-      <div className="bg-white py-8 border-b border-slate-200 shadow-sm relative z-20 mx-4 sm:mx-8 lg:mx-auto max-w-7xl rounded-b-xl px-4 sm:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-          <div className="flex gap-3 items-start">
-            <div className="bg-green-100 p-2 rounded-full text-green-600 shrink-0"><ShieldCheck size={20} /></div>
-            <div>
-              <h3 className="font-bold text-base mb-1 text-slate-900">Refundable Cancellations</h3>
-              <p className="text-slate-600">All ticket purchases are 100% refundable if the charter flight does not meet demand or does not operate.</p>
-            </div>
-          </div>
-          <div className="flex gap-3 items-start">
-            <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0"><CheckCircle size={20} /></div>
-            <div>
-              <h3 className="font-bold text-base mb-1 text-slate-900">Instant Reservation</h3>
-              <p className="text-slate-600">Seats are secured and counted toward our flight minimum once payment is received.</p>
-            </div>
-          </div>
-          <div className="flex gap-3 items-start">
-            <div className="bg-indigo-100 p-2 rounded-full text-indigo-600 shrink-0"><Users size={20} /></div>
-            <div>
-              <h3 className="font-bold text-base mb-1 text-slate-900">Family Seating</h3>
-              <p className="text-slate-600">Families and groups booking together will be seated together whenever possible.</p>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md sm:max-w-none">
+            <button 
+              onClick={() => setView('lookup')}
+              className="bg-blue-600 text-white px-8 py-4 rounded-lg font-bold hover:bg-blue-500 transition-colors flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Search size={20} /> Look Up Existing Reservation
+            </button>
+            <a 
+              href="mailto:Help@IsraelRescues.com"
+              className="bg-white/10 text-white px-8 py-4 rounded-lg font-bold hover:bg-white/20 transition-colors flex items-center justify-center gap-2 backdrop-blur-sm border border-white/10"
+            >
+              Contact Support
+            </a>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-3xl font-bold mb-10 text-center">Select Your Class</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto gap-6 mb-16">
-          {Object.values(CABIN_CLASSES).map((cabin) => {
-            const remaining = flightStatus[`${cabin.dbPrefix}_remaining`];
-            const isWaitlist = remaining <= 0;
-
-            return (
-              <div key={cabin.id} className="bg-white rounded-xl shadow-sm border-2 border-slate-200 overflow-hidden flex flex-col">
-                <div className={`${cabin.color} text-white px-6 py-4 flex justify-between items-center relative`}>
-                  <h3 className="text-xl font-bold">{cabin.name}</h3>
-                  <div className="text-right">
-                    <span className="text-2xl font-extrabold">${cabin.price.toLocaleString()}</span>
-                    <span className="text-sm opacity-80 block">/ seat</span>
-                  </div>
-                </div>
-                
-                <div className="bg-slate-50 border-b border-slate-200 py-2 px-6 flex justify-center min-h-[40px] items-center">
-                  {isWaitlist ? (
-                    <span className="bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1"><AlertCircle size={14}/> Waitlist Open</span>
-                  ) : (
-                    <span className="text-slate-400 text-xs uppercase tracking-wider font-semibold">Available</span>
-                  )}
-                </div>
-
-                <div className="p-6 flex-grow">
-                  <ul className="space-y-3 mb-8">
-                    {cabin.features.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-slate-700 text-sm">
-                        <CheckCircle size={16} className="text-slate-400 shrink-0" /> {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="p-6 pt-0 mt-auto">
-                  <button 
-                    onClick={() => onSelectCabin(cabin.id)}
-                    className={`w-full py-3 rounded-lg font-bold transition-all shadow flex items-center justify-center gap-2
-                      ${isWaitlist ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-[#0a192f] text-white hover:bg-slate-800'}`}
-                  >
-                    {isWaitlist ? `Join Waitlist` : `Select ${cabin.name}`} <ChevronRight size={18} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
         <div className="mb-16">
-          <h2 className="text-3xl font-bold mb-8 text-center text-[#0a192f]">Why This Charter Flight</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-              <div className="bg-blue-50 p-3 rounded-full mb-4"><MapPin size={24} className="text-blue-600" /></div>
-              <h4 className="font-bold text-slate-900 mb-2">Direct departure from Tel Aviv</h4>
-              <p className="text-sm text-slate-600">Avoid complicated overland travel routes and multiple connections.</p>
+          <h2 className="text-3xl font-bold mb-8 text-center text-[#0a192f]">Flight Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center opacity-75">
+              <div className="bg-slate-100 p-3 rounded-full mb-4"><MapPin size={24} className="text-slate-600" /></div>
+              <h4 className="font-bold text-slate-900 mb-2">Routes</h4>
+              <p className="text-sm text-slate-600">Tel Aviv to Frankfurt (FRA) & Munich (MUC)</p>
             </div>
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-              <div className="bg-blue-50 p-3 rounded-full mb-4"><Plane size={24} className="text-blue-600" /></div>
-              <h4 className="font-bold text-slate-900 mb-2">Fast onward connections</h4>
-              <p className="text-sm text-slate-600">Arrive in Munich (MUC) for easy onward flights to international destinations.</p>
-            </div>
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-              <div className="bg-blue-50 p-3 rounded-full mb-4"><Users size={24} className="text-blue-600" /></div>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center opacity-75">
+              <div className="bg-slate-100 p-3 rounded-full mb-4"><Plane size={24} className="text-slate-600" /></div>
               <h4 className="font-bold text-slate-900 mb-2">Organized coordination</h4>
-              <p className="text-sm text-slate-600">Arranged through Chapman Freeborn, a global aircraft charter specialist.</p>
+              <p className="text-sm text-slate-600">Arranged through licensed aircraft charter specialists.</p>
             </div>
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-              <div className="bg-blue-50 p-3 rounded-full mb-4"><ShieldCheck size={24} className="text-blue-600" /></div>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center text-center opacity-75">
+              <div className="bg-slate-100 p-3 rounded-full mb-4"><ShieldCheck size={24} className="text-slate-600" /></div>
               <h4 className="font-bold text-slate-900 mb-2">Safe Third Country</h4>
-              <p className="text-sm text-slate-600">Land in Germany, well outside the conflict zone, to plan your next steps safely.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
-          <div className="bg-amber-50 p-8 rounded-xl border border-amber-200 text-amber-900 shadow-sm">
-            <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><AlertCircle size={24} className="text-amber-600"/> Important Info</h2>
-            <div className="space-y-4 text-sm">
-              <p><strong>Strictly Based on Demand:</strong> This flight will only operate if minimum passenger counts are met to cover the private charter cost. If it does not operate, you will receive a 100% refund.</p>
-              <p><strong>Flight Confirmation & Security:</strong> Due to the regional security situation, exact departure date and time are subject to change. Final schedule details will be confirmed 48 to 72 hours prior to departure.</p>
-              <p><strong>Onward Travel:</strong> We strongly recommend waiting until final flight confirmation is received before booking onward flights from Munich.</p>
-              <p><strong>Check-in:</strong> Passengers are advised to arrive at TLV airport at least <strong>3.5 hours</strong> prior to departure.</p>
-            </div>
-          </div>
-          
-          <div className="bg-slate-100 p-8 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
-            <h2 className="text-2xl font-bold flex items-center gap-2 mb-4"><FileText size={24} className="text-slate-600"/> Legal Notice</h2>
-            <div className="text-sm text-slate-600 space-y-4 leading-relaxed">
-              <p>This is a privately organized charter flight arranged through a licensed aircraft charter broker. Rescue Charters LLC acts solely as an independent charter coordinator.</p>
-              <p><strong>Limitation of Liability:</strong> Rescue Charters LLC is not responsible or liable for any direct, indirect, incidental, or consequential damages, missed connections, delays, cancellations, or losses of any kind arising from or relating to the operation or non-operation of this flight.</p>
-              <p>All ticket purchases are fully refundable if the charter flight does not operate. In such a case, passengers will receive a full refund of the ticket price within 30 business days, less any non-refundable payment processing fees.</p>
+              <p className="text-sm text-slate-600">Landings in Germany, well outside the conflict zone.</p>
             </div>
           </div>
         </div>
@@ -388,7 +268,214 @@ function LandingView({ onSelectCabin, flightStatus }) {
   );
 }
 
-// === BOOKING FLOW (Adapted for Munich) ===
+function LookupView({ setView, supabase }) {
+  const [email, setEmail] = useState('');
+  const [ref, setRef] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleLookup = async (e) => {
+    e.preventDefault();
+    setIsSearching(true);
+    setErrorMsg('');
+    try {
+      const { data, error } = await supabase.rpc('lookup_reservation', { p_email: email, p_ref: ref });
+      if (error) throw error;
+      if (!data || data.length === 0) setErrorMsg('No booking found. Please check your email and reference code.');
+      else setResult(data[0]);
+    } catch (err) {
+      setErrorMsg('An error occurred during lookup.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto px-4 py-16 animate-in fade-in">
+      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">&larr; Back Home</button>
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+        <h2 className="text-2xl font-bold mb-2">Find Reservation</h2>
+        <p className="text-sm text-slate-500 mb-6">Enter your details to check your booking status.</p>
+        
+        {errorMsg && <p className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded border border-red-100">{errorMsg}</p>}
+
+        {!result ? (
+          <form onSubmit={handleLookup} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address</label>
+              <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Booking Reference</label>
+              <input type="text" value={ref} onChange={(e)=>setRef(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="e.g. 8F92A1" required />
+            </div>
+            <button type="submit" disabled={isSearching} className="w-full bg-[#0a192f] text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors mt-4">
+              {isSearching ? 'Searching...' : 'Lookup Booking'}
+            </button>
+          </form>
+        ) : (
+          <div className="text-center">
+            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={24} /></div>
+            <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
+            <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
+              <p className="flex justify-between"><span className="text-slate-500">Class:</span> <strong>{result.cabin_class.toUpperCase()}</strong></p>
+              <p className="flex justify-between"><span className="text-slate-500">Total Passengers:</span> <strong>{result.passenger_count}</strong></p>
+              <div className="pt-2 mt-2 border-t border-slate-200">
+                <p className="text-slate-500 mb-1">Status:</p>
+                <p className={`font-semibold px-2 py-1 rounded inline-block text-xs uppercase tracking-wider ${result.payment_status === 'waitlist' ? 'text-amber-700 bg-amber-100 border border-amber-200' : 'text-blue-700 bg-blue-100 border border-blue-200'}`}>
+                  {result.payment_status.replace('_', ' ')}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">Look up another</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="bg-slate-900 text-slate-400 py-10 mt-auto border-t border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="text-center md:text-left">
+            <p className="text-white font-bold mb-1">Rescue Charters LLC</p>
+            <p className="text-sm text-slate-500 mb-1">Operating as Israel Rescues.</p>
+            <p className="text-xs text-slate-600">This is a privately organized charter flight. Rescue Charters LLC is not liable for indirect damages or delays.</p>
+          </div>
+          <div className="text-center md:text-right text-sm">
+            <p className="mb-1">Contact: <a href="mailto:Help@IsraelRescues.com" className="text-blue-400 hover:underline">Help@IsraelRescues.com</a></p>
+            <p className="mb-1">WhatsApp: <a href="https://wa.me/message/F2AKLDAS44RYJ1" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline">Message Us</a></p>
+            <div className="flex items-center justify-center md:justify-end gap-3 mt-2">
+              <p className="text-slate-500">&copy; {new Date().getFullYear()} Rescue Charters LLC.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// === HIDDEN FORMS INTACT BELOW (BookingFlow & WaitlistFlow) ===
+
+function WaitlistFlow({ setView, supabase }) {
+  const [formData, setFormData] = useState({
+    name: '', email: '', phoneCode: '+1', phone: '',
+    passengerCount: 1, destination: '', earliestDeparture: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleChange = (e) => {
+    let { name, value } = e.target;
+    if (name === 'phone') value = formatPhoneNumber(value);
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      const { error } = await supabase.from('waitlist').insert([{
+        name: formData.name,
+        email: formData.email,
+        phone: `${formData.phoneCode} ${formData.phone}`,
+        passenger_count: parseInt(formData.passengerCount, 10),
+        desired_destination: formData.destination,
+        earliest_departure: formData.earliestDeparture || null
+      }]);
+
+      if (error) throw error;
+      setIsSuccess(true);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Failed to join waitlist. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 animate-in zoom-in-95 duration-500 text-center">
+        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <CheckCircle size={40} />
+        </div>
+        <h2 className="text-3xl font-extrabold mb-4">You're on the list!</h2>
+        <p className="text-slate-600 mb-8">
+          Thank you. We have recorded your interest for <strong>{formData.passengerCount} passenger{formData.passengerCount > 1 ? 's' : ''}</strong> to <strong>{formData.destination || 'a European Hub'}</strong>. 
+        </p>
+        <button onClick={() => setView('landing')} className="bg-[#0a192f] text-white px-8 py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors">
+          Return to Homepage
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-12 animate-in slide-in-from-bottom-4 duration-500">
+      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">
+        &larr; Back to Flight Details
+      </button>
+
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-[#0a192f] text-white p-6 sm:p-8">
+          <h1 className="text-2xl font-bold mb-2">Future Flights Waitlist</h1>
+          <p className="text-slate-300 text-sm">Join this priority list to help us gauge demand for additional charters.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
+          {errorMsg && <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm font-medium flex items-center gap-2"><AlertCircle size={18}/> {errorMsg}</div>}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Full Name *</label>
+              <input type="text" name="name" value={formData.name} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address *</label>
+              <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide mb-1">Phone Number *</label>
+              <div className="flex gap-2">
+                <select name="phoneCode" value={formData.phoneCode} onChange={handleChange} className="w-1/3 md:w-1/4 border border-slate-300 rounded-md p-2.5 outline-none bg-white">
+                  {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                </select>
+                <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-2/3 md:w-3/4 border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" placeholder="(555) 000-0000" required/>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6">
+            <h3 className="font-bold text-slate-800 mb-4">Travel Needs</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">How many passengers? *</label>
+                <input type="number" min="1" max="20" name="passengerCount" value={formData.passengerCount} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Where are you trying to go? *</label>
+                <input type="text" name="destination" value={formData.destination} onChange={handleChange} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 mt-4 flex justify-center items-center gap-2">
+            {isSubmitting ? 'Joining...' : 'Join Priority Waitlist'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
   const [step, setStep] = useState(1);
   const [passengers, setPassengers] = useState([{ 
@@ -530,7 +617,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
         <div className="flex justify-between items-end border-b border-slate-200 pb-4">
           <div>
             <h1 className="text-3xl font-bold">Secure Checkout</h1>
-            <p className="text-slate-600 mt-1">Class: <strong>{cabinDetails.name}</strong></p>
+            <p className="text-slate-600 mt-1">Class: <strong>{cabinDetails?.name}</strong></p>
           </div>
           <div className="text-right hidden sm:block">
             <div className="text-sm text-slate-500">Total</div>
@@ -721,8 +808,8 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               <h3 className="font-bold text-lg border-b border-slate-200 pb-2 mb-4">Order Summary</h3>
               <div className="space-y-2 text-sm text-slate-700 mb-4">
                 <div className="flex justify-between">
-                  <span>{cabinDetails.name} {isWaitlistSpot ? 'Waitlist Spot' : 'Seat'} x {seatCount}</span>
-                  <span>${(cabinDetails.price * seatCount).toLocaleString()}</span>
+                  <span>{cabinDetails?.name} {isWaitlistSpot ? 'Waitlist Spot' : 'Seat'} x {seatCount}</span>
+                  <span>${(cabinDetails?.price * seatCount).toLocaleString()}</span>
                 </div>
                 {infantCount > 0 && (
                   <div className="flex justify-between">
@@ -809,7 +896,7 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
               
               <p className="text-sm text-slate-500 mb-1">{bookingResponse.isWaitlist ? 'Waitlist Spots' : 'Reservation'}</p>
               <p className="font-semibold mb-4">
-                {seatCount} x {cabinDetails.name}
+                {seatCount} x {cabinDetails?.name}
                 {infantCount > 0 && <span className="block text-slate-600 font-normal">+ {infantCount} Lap Infant{infantCount > 1 ? 's' : ''}</span>}
               </p>
 
@@ -831,96 +918,5 @@ function BookingFlow({ setView, selectedCabin, user, supabase, flightStatus }) {
         )}
       </div>
     </div>
-  );
-}
-
-function LookupView({ setView, supabase }) {
-  const [email, setEmail] = useState('');
-  const [ref, setRef] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [result, setResult] = useState(null);
-  const [errorMsg, setErrorMsg] = useState('');
-
-  const handleLookup = async (e) => {
-    e.preventDefault();
-    setIsSearching(true);
-    setErrorMsg('');
-    try {
-      const { data, error } = await supabase.rpc('lookup_reservation', { p_email: email, p_ref: ref });
-      if (error) throw error;
-      if (!data || data.length === 0) setErrorMsg('No booking found. Please check your email and reference code.');
-      else setResult(data[0]);
-    } catch (err) {
-      setErrorMsg('An error occurred during lookup.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  return (
-    <div className="max-w-md mx-auto px-4 py-16 animate-in fade-in">
-      <button onClick={() => setView('landing')} className="text-blue-600 font-medium hover:underline mb-6 inline-flex items-center gap-1">&larr; Back Home</button>
-      <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-        <h2 className="text-2xl font-bold mb-2">Find Reservation</h2>
-        <p className="text-sm text-slate-500 mb-6">Enter your details to check your booking status.</p>
-        
-        {errorMsg && <p className="text-red-500 text-sm mb-4 bg-red-50 p-3 rounded border border-red-100">{errorMsg}</p>}
-
-        {!result ? (
-          <form onSubmit={handleLookup} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Email Address</label>
-              <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500" required />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 uppercase mb-1">Booking Reference</label>
-              <input type="text" value={ref} onChange={(e)=>setRef(e.target.value)} className="w-full border border-slate-300 rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500 uppercase" placeholder="e.g. 8F92A1" required />
-            </div>
-            <button type="submit" disabled={isSearching} className="w-full bg-[#0a192f] text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-colors mt-4">
-              {isSearching ? 'Searching...' : 'Lookup Booking'}
-            </button>
-          </form>
-        ) : (
-          <div className="text-center">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={24} /></div>
-            <h3 className="text-xl font-bold text-[#0a192f] mb-4">Reservation Found</h3>
-            <div className="bg-slate-50 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-200">
-              <p className="flex justify-between"><span className="text-slate-500">Class:</span> <strong>{result.cabin_class.toUpperCase()}</strong></p>
-              <p className="flex justify-between"><span className="text-slate-500">Total Passengers:</span> <strong>{result.passenger_count}</strong></p>
-              <div className="pt-2 mt-2 border-t border-slate-200">
-                <p className="text-slate-500 mb-1">Status:</p>
-                <p className={`font-semibold px-2 py-1 rounded inline-block text-xs uppercase tracking-wider ${result.payment_status === 'waitlist' ? 'text-amber-700 bg-amber-100 border border-amber-200' : 'text-blue-700 bg-blue-100 border border-blue-200'}`}>
-                  {result.payment_status.replace('_', ' ')}
-                </p>
-              </div>
-            </div>
-            <button onClick={() => setResult(null)} className="text-blue-600 text-sm font-medium hover:underline mt-6">Look up another</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="bg-slate-900 text-slate-400 py-10 mt-auto border-t border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="text-center md:text-left">
-            <p className="text-white font-bold mb-1">Rescue Charters LLC</p>
-            <p className="text-sm text-slate-500 mb-1">Operating as Israel Rescues.</p>
-            <p className="text-xs text-slate-600">This is a privately organized charter flight. Rescue Charters LLC is not liable for indirect damages or delays.</p>
-          </div>
-          <div className="text-center md:text-right text-sm">
-            <p className="mb-1">Contact: <a href="mailto:Help@IsraelRescues.com" className="text-blue-400 hover:underline">Help@IsraelRescues.com</a></p>
-            <p className="mb-1">WhatsApp: <a href="https://wa.me/message/F2AKLDAS44RYJ1" target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline">Message Us</a></p>
-            <div className="flex items-center justify-center md:justify-end gap-3 mt-2">
-              <p className="text-slate-500">&copy; {new Date().getFullYear()} Rescue Charters LLC.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </footer>
   );
 }
